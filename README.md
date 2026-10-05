@@ -45,7 +45,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-test.txt
 .venv/bin/pytest
 ```
 
-Run it outside HA with `docker compose up -d --build` (see `docker-compose.yaml`; panel at http://localhost:8199). To test changes on your own HA as a local add-on, run `./sync-to-ha.sh` (needs the SSH add-on). Bump `version` in `honeypot/config.json` for every release; that's how HA detects updates.
+Run it outside HA with `docker compose up -d --build` (see `docker-compose.yaml`; panel at http://localhost:8199). To test changes on your own HA as a local add-on, run `./sync-to-ha.sh` (needs the SSH add-on). To release, bump `version` in `honeypot/config.json` and add a `CHANGELOG.md` entry. On push, the *Publish* workflow builds both images on GHCR and tags a GitHub release, which takes about 5 minutes. HA may show the update a little before the images are ready. `sync-to-ha.sh` removes the `image` key, so your local copy is built from source.
 
 ```
 repository.yaml          HA add-on repository manifest
