@@ -2,7 +2,7 @@
 
 import asyncio
 
-from services.common import Report, close
+from services.common import Report, close, serve
 
 
 async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
@@ -18,5 +18,5 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
     await close(writer)
 
 
-async def start(port: int, report: Report, host: str = "0.0.0.0", **kw) -> asyncio.Server:
-    return await asyncio.start_server(lambda r, w: handle(r, w, report, **kw), host, port)
+async def start(port: int, report: Report, host: str = "0.0.0.0", sock=None, **kw) -> asyncio.Server:
+    return await serve(lambda r, w: handle(r, w, report, **kw), host, port, sock)

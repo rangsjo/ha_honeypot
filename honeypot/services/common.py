@@ -71,6 +71,13 @@ class LineReader:
         return buf.decode(errors="replace")
 
 
+async def serve(handler, host: str, port: int, sock=None) -> asyncio.Server:
+    """Start a TCP server on host:port, or on an already-bound socket (own_ip mode)."""
+    if sock is not None:
+        return await asyncio.start_server(handler, sock=sock)
+    return await asyncio.start_server(handler, host, port)
+
+
 async def close(writer: asyncio.StreamWriter) -> None:
     try:
         writer.close()

@@ -2,7 +2,7 @@
 
 import asyncio
 
-from services.common import LineReader, Report, close
+from services.common import LineReader, Report, close, serve
 
 DEFAULT_BANNER = "220 (vsFTPd 3.0.5)"
 MAX_COMMANDS = 30
@@ -48,5 +48,5 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
 
 
 async def start(port: int, report: Report, banner: str = DEFAULT_BANNER, host: str = "0.0.0.0",
-                **kw) -> asyncio.Server:
-    return await asyncio.start_server(lambda r, w: handle(r, w, report, banner, **kw), host, port)
+                sock=None, **kw) -> asyncio.Server:
+    return await serve(lambda r, w: handle(r, w, report, banner, **kw), host, port, sock)

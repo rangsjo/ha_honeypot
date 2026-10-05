@@ -125,3 +125,10 @@ def test_notifier_records_alerts_delivered_or_not():
     assert saved[1]["panel_path"] == "/local_honeypot"
     assert saved[1]["host"]["vendor"] == "Apple, Inc."
     assert "tried 'a' / 'c'" in saved[1]["message"]
+
+
+def test_container_hostname_env_does_not_leak_into_persona(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOSTNAME", "local-honeypot")
+    assert config.load(tmp_path / "none.json")["hostname"] == ""
+    monkeypatch.setenv("FAKE_HOSTNAME", "nas")
+    assert config.load(tmp_path / "none.json")["hostname"] == "nas"

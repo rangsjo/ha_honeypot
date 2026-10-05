@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import signal
 import time
 from pathlib import Path
 
@@ -10,9 +11,11 @@ import aiohttp
 from aiohttp import web
 
 import config
+import enrich
 import persona
 import ui
 from enrich import Enricher
+from netns import OwnIP
 from events import EventStore
 from notifier import Notifier
 from services import ftp, http, ssh, telnet, tripwire
@@ -80,12 +83,26 @@ async def main() -> None:
     status: dict[str, str] = {}
     servers = []
 
+    own = None
+    if cfg["own_ip"]:
+        own = OwnIP(who["mac"], who["hostname"], parent=cfg["own_ip_interface"],
+                    address=cfg["own_ip_address"], gateway=cfg["own_ip_gateway"])
+        try:
+            ip = await own.start()
+            status["own_ip"] = f"{ip} · MAC {who['mac']} · {who['hostname']}"
+            enrich.socket_factory = own.socket
+        except Exception as e:
+            log.error("own_ip failed, falling back to HA's IP: %s", e)
+            status["own_ip"] = f"failed, using HA's IP: {e}"
+            await own.stop()
+            own = None
+
     async def launch(name: str, port: int, starter) -> None:
         if not port:
             status[name] = "disabled"
             return
         try:
-            servers.append(await starter())
+            servers.append(await starter(**({"sock": own.listen_socket(port)} if own else {})))
             status[name] = f"listening on {port}"
             log.info("%s honeypot listening on port %s", name, port)
         except OSError as e:
@@ -93,20 +110,30 @@ async def main() -> None:
             log.error("%s honeypot could not bind port %s: %s", name, port, e)
 
     await launch("ssh", cfg["ssh_port"],
-                 lambda: ssh.start(cfg["ssh_port"], report, DATA_DIR / "ssh_host_ed25519_key",
-                                   version=who["ssh_banner"]))
-    await launch("telnet", cfg["telnet_port"], lambda: telnet.start(cfg["telnet_port"], report, who["hostname"], who["telnet_banner"]))
-    await launch("ftp", cfg["ftp_port"], lambda: ftp.start(cfg["ftp_port"], report, who["ftp_banner"]))
-    await launch("http", cfg["http_port"], lambda: http.start(cfg["http_port"], report, who["http_title"], who["http_server"]))
+                 lambda **kw: ssh.start(cfg["ssh_port"], report, DATA_DIR / "ssh_host_ed25519_key",
+                                        version=who["ssh_banner"], **kw))
+    await launch("telnet", cfg["telnet_port"],
+                 lambda **kw: telnet.start(cfg["telnet_port"], report, who["hostname"], who["telnet_banner"], **kw))
+    await launch("ftp", cfg["ftp_port"],
+                 lambda **kw: ftp.start(cfg["ftp_port"], report, who["ftp_banner"], **kw))
+    await launch("http", cfg["http_port"],
+                 lambda **kw: http.start(cfg["http_port"], report, who["http_title"], who["http_server"], **kw))
     for port in cfg["tripwire_ports"]:
-        await launch(f"tcp/{port}", port, lambda p=port: tripwire.start(p, report))
+        await launch(f"tcp/{port}", port, lambda p=port, **kw: tripwire.start(p, report, **kw))
 
     runner = web.AppRunner(ui.make_app(store, notifier, status, enricher, alerts), access_log=None)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", cfg["ui_port"]).start()
     log.info("UI on port %s, alerts to %s (cooldown %ss)", cfg["ui_port"], notifier.url, cfg["notify_cooldown"])
 
-    await asyncio.Event().wait()
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, stop.set)
+    await stop.wait()
+    log.info("Shutting down")
+    if own:
+        await own.stop()  # releases the DHCP lease and removes the interface
 
 
 if __name__ == "__main__":

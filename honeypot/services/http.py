@@ -82,8 +82,9 @@ def make_app(report: Report, title: str = "Router Administration",
 
 
 async def start(port: int, report: Report, title: str = "Router Administration",
-                server: str = "lighttpd/1.4.59", host: str = "0.0.0.0") -> web.AppRunner:
+                server: str = "lighttpd/1.4.59", host: str = "0.0.0.0", sock=None) -> web.AppRunner:
     runner = web.AppRunner(make_app(report, title, server), access_log=None)
     await runner.setup()
-    await web.TCPSite(runner, host, port).start()
+    site = web.SockSite(runner, sock) if sock is not None else web.TCPSite(runner, host, port)
+    await site.start()
     return runner

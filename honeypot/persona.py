@@ -16,18 +16,26 @@ log = logging.getLogger(__name__)
 # SSH, telnet and FTP banners that plausibly come from the same machine.
 SYSTEMS = [
     {"ssh_banner": "OpenSSH_8.9p1 Ubuntu-3ubuntu0.10", "telnet_banner": "Ubuntu 22.04.4 LTS",
-     "ftp_banner": "220 (vsFTPd 3.0.5)"},
+     "ftp_banner": "220 (vsFTPd 3.0.5)", "ouis": "pc"},
     {"ssh_banner": "OpenSSH_9.6p1 Ubuntu-3ubuntu13.5", "telnet_banner": "Ubuntu 24.04.1 LTS",
-     "ftp_banner": "220 (vsFTPd 3.0.5)"},
+     "ftp_banner": "220 (vsFTPd 3.0.5)", "ouis": "pc"},
     {"ssh_banner": "OpenSSH_9.2p1 Debian-2+deb12u3", "telnet_banner": "Debian GNU/Linux 12",
-     "ftp_banner": "220 ProFTPD Server (Debian)"},
+     "ftp_banner": "220 ProFTPD Server (Debian)", "ouis": "nas"},
     {"ssh_banner": "OpenSSH_8.4p1 Debian-5+deb11u3", "telnet_banner": "Debian GNU/Linux 11",
-     "ftp_banner": "220 ProFTPD 1.3.7a Server (Debian)"},
+     "ftp_banner": "220 ProFTPD 1.3.7a Server (Debian)", "ouis": "nas"},
     {"ssh_banner": "OpenSSH_9.2p1 Debian-2+deb12u3", "telnet_banner": "Raspbian GNU/Linux 12",
-     "ftp_banner": "220 (vsFTPd 3.0.3)"},
+     "ftp_banner": "220 (vsFTPd 3.0.3)", "ouis": "pi"},
     {"ssh_banner": "dropbear_2022.83", "telnet_banner": "",
-     "ftp_banner": "220 Welcome to FTP service."},
+     "ftp_banner": "220 Welcome to FTP service.", "ouis": "nas"},
 ]
+
+# Vendor prefixes for the own_ip MAC, so its vendor lookup fits the persona.
+# Universally administered (unlike phones' random MACs), like real hardware.
+OUIS = {
+    "pc": ["00:1b:21", "3c:fd:fe", "00:15:17"],          # Intel NICs
+    "nas": ["00:11:32", "24:5e:be"],                     # Synology, QNAP
+    "pi": ["dc:a6:32", "d8:3a:dd", "2c:cf:67"],          # Raspberry Pi
+}
 
 HOSTNAMES = ["nas", "diskstation", "storage", "backup", "fileserver", "mediaserver",
              "homeserver", "plex", "raspberrypi", "ubuntu", "nvr", "server", "media", "files"]
@@ -42,12 +50,15 @@ WEB_UIS = [
     {"http_title": "Login", "http_server": "nginx/1.22.1"},
 ]
 
-FIELDS = ("hostname", "ssh_banner", "telnet_banner", "ftp_banner", "http_title", "http_server")
+FIELDS = ("hostname", "ssh_banner", "telnet_banner", "ftp_banner", "http_title", "http_server", "mac")
 
 
 def generate(rng: random.Random | None = None) -> dict:
     rng = rng or random.SystemRandom()
-    return {"hostname": rng.choice(HOSTNAMES), **rng.choice(SYSTEMS), **rng.choice(WEB_UIS)}
+    system = dict(rng.choice(SYSTEMS))
+    oui = rng.choice(OUIS[system.pop("ouis")])
+    mac = oui + "".join(f":{rng.randrange(256):02x}" for _ in range(3))
+    return {"hostname": rng.choice(HOSTNAMES), **system, **rng.choice(WEB_UIS), "mac": mac}
 
 
 def load_or_create(path: Path | None, overrides: dict | None = None) -> dict:

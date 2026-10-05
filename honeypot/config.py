@@ -22,8 +22,18 @@ DEFAULTS = {
     "ftp_banner": "",
     "http_title": "",
     "http_server": "",
+    # Own IP: run the services as a separate LAN device (see netns.py).
+    "own_ip": False,
+    "own_ip_interface": "",
+    "own_ip_address": "",
+    "own_ip_gateway": "",
     "ui_port": 8199,
 }
+
+
+# Env var names that differ from KEY.upper(): HOSTNAME is set by Docker and the
+# Supervisor to the container name, which would leak into the fake banners.
+ENV_NAMES = {"hostname": "FAKE_HOSTNAME"}
 
 
 def _parse_env(value: str, default):
@@ -43,7 +53,7 @@ def load(options_path: Path | None = None) -> dict:
     if options_path.exists():
         cfg.update(json.loads(options_path.read_text()))
     for key, default in DEFAULTS.items():
-        env = os.getenv(key.upper())
+        env = os.getenv(ENV_NAMES.get(key, key.upper()))
         if env is not None:
             cfg[key] = _parse_env(env, default)
     return cfg

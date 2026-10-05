@@ -54,9 +54,10 @@ def load_host_key(path: Path) -> asyncssh.SSHKey:
 
 
 async def start(port: int, report: Report, host_key_path: Path, version: str = DEFAULT_VERSION,
-                host: str = "0.0.0.0", delay: float = 1.0) -> asyncssh.SSHAcceptor:
-    return await asyncssh.create_server(
-        lambda: _Server(report, delay), host, port,
+                host: str = "0.0.0.0", delay: float = 1.0, sock=None) -> asyncssh.SSHAcceptor:
+    where = {"sock": sock} if sock is not None else {"host": host, "port": port}
+    return await asyncssh.listen(
+        server_factory=lambda: _Server(report, delay), **where,
         server_host_keys=[load_host_key(host_key_path)],
         server_version=version,
         login_timeout=60,

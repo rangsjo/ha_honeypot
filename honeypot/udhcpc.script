@@ -1,0 +1,20 @@
+#!/bin/sh
+# udhcpc hook for the honeypot's own interface. Runs inside the honeypot's
+# network namespace and only touches that interface. Unlike udhcpc's default
+# script, it never writes /etc/resolv.conf.
+case "$1" in
+    deconfig)
+        ip -4 addr flush dev "$interface"
+        ip link set "$interface" up
+        ;;
+    bound|renew)
+        if ! ip -4 addr show dev "$interface" | grep -q "inet $ip/"; then
+            ip -4 addr flush dev "$interface"
+            ip addr add "$ip/${mask:-24}" dev "$interface"
+        fi
+        if [ -n "$router" ]; then
+            ip route replace default via "${router%% *}" dev "$interface"
+        fi
+        ;;
+esac
+exit 0

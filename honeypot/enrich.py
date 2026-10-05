@@ -21,6 +21,10 @@ log = logging.getLogger(__name__)
 
 MANUF_PATH = Path(__file__).parent / "manuf"
 
+# Creates the sockets used to contact the intruder. With own_ip this is
+# replaced by OwnIP.socket so lookups come from the honeypot's IP, not HA's.
+socket_factory = socket.socket
+
 # Ports whose being open says something about what kind of device this is.
 PROBE_PORTS = {
     22: "SSH", 80: "HTTP", 139: "NetBIOS", 443: "HTTPS", 445: "SMB (Windows/NAS)",
@@ -98,7 +102,14 @@ class _UDPOnce(asyncio.DatagramProtocol):
 
 async def udp_query(ip: str, port: int, payload: bytes, timeout: float = 1.5) -> bytes | None:
     loop = asyncio.get_running_loop()
-    transport, proto = await loop.create_datagram_endpoint(lambda: _UDPOnce(payload), remote_addr=(ip, port))
+    sock = socket_factory(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setblocking(False)
+    try:
+        sock.connect((ip, port))
+    except OSError:
+        sock.close()
+        return None
+    transport, proto = await loop.create_datagram_endpoint(lambda: _UDPOnce(payload), sock=sock)
     try:
         return await asyncio.wait_for(proto.reply, timeout)
     except asyncio.TimeoutError:
@@ -200,12 +211,15 @@ async def reverse_dns(ip: str) -> str | None:
 # ── Active probe ──────────────────────────────────────────────────────────────
 
 async def _port_open(ip: str, port: int, timeout: float) -> bool:
+    sock = socket_factory(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setblocking(False)
     try:
-        _, w = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout)
+        await asyncio.wait_for(asyncio.get_running_loop().sock_connect(sock, (ip, port)), timeout)
+        return True
     except (OSError, asyncio.TimeoutError):
         return False
-    w.close()
-    return True
+    finally:
+        sock.close()
 
 
 async def open_ports(ip: str, ports=PROBE_PORTS, timeout: float = 1.0) -> list[int]:

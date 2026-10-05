@@ -1,0 +1,26 @@
+"""Tests for the own_ip helpers that don't need root (the namespace setup itself
+is tested in Docker, see README)."""
+
+import random
+
+import netns
+import persona
+
+
+def test_parse_default_iface():
+    out = "default via 192.168.1.1 dev enp2s0 proto dhcp src 192.168.1.204 metric 100\n"
+    assert netns.parse_default_iface(out) == "enp2s0"
+    assert netns.parse_default_iface("") is None
+
+
+def test_parse_ipv4():
+    out = "5: honeypot0    inet 192.168.1.128/24 brd 192.168.1.255 scope global honeypot0\n"
+    assert netns.parse_ipv4(out) == "192.168.1.128"
+    assert netns.parse_ipv4("") is None
+
+
+def test_persona_mac_is_a_real_vendor_prefix():
+    for seed in range(20):
+        mac = persona.generate(random.Random(seed))["mac"]
+        assert mac[:8] in {o for ouis in persona.OUIS.values() for o in ouis}
+        assert not int(mac[:2], 16) & 0x02  # not "randomized"/locally administered

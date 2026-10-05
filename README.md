@@ -68,6 +68,30 @@ Set a port to `0` to disable that service. If a port is already taken (for examp
 
 > **Tip:** attackers try port 22 first. If you move the *Terminal & SSH* add-on to a different port, set `ssh_port: 22` here for a much better trap.
 
+### Own IP (optional, recommended if HA is on Ethernet)
+
+By default the fake services share HA's IP, so a careful attacker can see they're on the Home Assistant box (it announces itself on the network) and skip it. With `own_ip: true` the honeypot becomes a **separate device on your LAN**:
+
+- It gets its own MAC address, with a vendor prefix that fits the persona (Synology/QNAP, Intel or Raspberry Pi).
+- It gets its own IP from your router over DHCP, under the persona's hostname, so your router lists it as e.g. `diskstation`.
+- The fake services listen only on that IP, and the device lookups (open ports and names of the intruder) are sent from it, so nothing points back to HA.
+- Because the honeypot is its own device, port 22 is free. Set `ssh_port: 22` for a much better SSH trap.
+
+```yaml
+own_ip: true
+# own_ip_interface: enp2s0           # default: the interface of HA's default route
+# own_ip_address: 192.168.1.250/24   # static address instead of DHCP
+# own_ip_gateway: 192.168.1.1        # only with own_ip_address
+```
+
+How it works: a macvlan interface on HA's network port, inside a private network namespace. HA's own networking, routing and ARP are not touched, and the interface disappears when the add-on stops (the DHCP lease is released).
+
+Requirements and trade-offs:
+- **HA must be on Ethernet.** Wi-Fi access points generally refuse extra MAC addresses from one client.
+- The add-on asks for the `NET_ADMIN` and `SYS_ADMIN` privileges to create the interface and namespace, so HA shows it with a lower security rating.
+- HA itself can't reach the honeypot's IP (a macvlan limitation). Test from another device.
+- If setup fails, the add-on logs why and falls back to HA's IP. The panel shows the `own_ip` status.
+
 ### 3. Create the notification automation
 
 ```yaml
@@ -143,7 +167,8 @@ honeypot/                add-on source (Docker build context)
   events.py              event/alert log (memory + /data/events.jsonl) and ARP→MAC lookup
   notifier.py            HA webhook with per-IP cooldown, alert formatting
   enrich.py              device identification (vendor, DNS/mDNS/NetBIOS, HA entities, ports)
-  persona.py             random per-install banners/hostname, saved in /data
+  persona.py             random per-install banners/hostname/MAC, saved in /data
+  netns.py, udhcpc.script  own_ip: macvlan + private network namespace + DHCP
   ui.py, templates/      ingress panel (ingress-only when running under Supervisor)
   services/              ssh, telnet, ftp, http, tripwire
 tests/                   end-to-end tests that drive each fake service as a client
