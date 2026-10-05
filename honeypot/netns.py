@@ -121,7 +121,9 @@ class OwnIP:
             # udhcpc -R releases the lease when terminated; the shell does that on stdin EOF.
             self._dhcp = subprocess.Popen(
                 self._ns("sh", "-c", 'udhcpc "$@" & u=$!; read _; kill $u; wait $u', "sh",
-                         "-f", "-R", "-i", IFACE, "-s", str(DHCP_SCRIPT), "-x", f"hostname:{self.hostname}"),
+                         # -B: ask for broadcast replies, which reach us even where unicast
+                         # to our MAC is filtered, so the receive check can tell which it is.
+                         "-f", "-R", "-B", "-i", IFACE, "-s", str(DHCP_SCRIPT), "-x", f"hostname:{self.hostname}"),
                 stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         loop = asyncio.get_running_loop()
@@ -135,7 +137,8 @@ class OwnIP:
                 return self.ip
             await asyncio.sleep(0.5)
         raise RuntimeError(f"DHCP request sent from {self.mac}, but no reply arrived within "
-                           f"{self.dhcp_timeout:.0f}s. {RECEIVE_HINT}")
+                           f"{self.dhcp_timeout:.0f}s, not even as broadcast. Check that the router hands "
+                           f"out addresses to new devices (MAC filter, full pool). {RECEIVE_HINT}")
 
     async def _check_receive(self) -> None:
         """Make sure unicast frames to our MAC get through (a static address wouldn't notice otherwise).
@@ -160,7 +163,8 @@ class OwnIP:
             if "lladdr" in await _run(*self._ns("ip", "neigh", "show", gateway, "dev", IFACE)):
                 return
             await asyncio.sleep(0.3)
-        raise RuntimeError(f"got {self.ip}, but the gateway {gateway} can't be reached from it. {RECEIVE_HINT}")
+        raise RuntimeError(f"DHCP gave {self.ip} (as broadcast), but replies sent to the honeypot's MAC "
+                           f"don't arrive: the gateway {gateway} can't be reached. {RECEIVE_HINT}")
 
     @property
     def arp_path(self) -> Path:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+
+- **Own IP diagnostics:** DHCP asks for broadcast replies, so the honeypot gets a lease even where traffic to its own MAC is filtered. The receive check then reports precisely whether broadcast or unicast traffic is failing.
+
 ## 1.1.0
 
 - **Runs unprivileged after startup:** once own IP is set up and the ports are open, the add-on switches to an unprivileged user with no capabilities. The fake services, which face attackers, no longer run as root with `NET_ADMIN`/`SYS_ADMIN`. The panel shows the result.
