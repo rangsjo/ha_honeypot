@@ -1,0 +1,21 @@
+services:
+  honeypot:
+    build: ./honeypot
+    container_name: honeypot
+    # Host networking so the fake services sit on the machine's LAN IP and
+    # the ARP table (for MAC addresses of intruders) is visible.
+    network_mode: host
+    volumes:
+      - ./data:/data                 # events.jsonl + persistent SSH host key
+    environment:
+      - HA_URL=http://homeassistant.local:8123   # change to your HA IP if needed
+      - WEBHOOK_ID=honeypot_alert
+      - NOTIFY_COOLDOWN=600
+      - SSH_PORT=2222
+      - TELNET_PORT=23
+      - FTP_PORT=21
+      - HTTP_PORT=80
+      - TRIPWIRE_PORTS=3389,5900,3306
+      - IGNORE_IPS=                  # comma-separated, e.g. your network scanner
+      - UI_PORT=8199
+    restart: unless-stopped

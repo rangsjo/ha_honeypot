@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Honeypot</title>
+<style>
+:root { --bg:#fafafa; --fg:#1c1c1c; --muted:#6b6b6b; --card:#fff; --line:#e3e3e3; --login:#c62828; --connect:#ef6c00; --ok:#2e7d32; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111; --fg:#e6e6e6; --muted:#9a9a9a; --card:#1c1c1c; --line:#2e2e2e; --login:#ef5350; --connect:#ffa726; --ok:#66bb6a; }
+}
+body { margin:0; padding:16px; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+h1 { font-size:20px; margin:0 0 12px; }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+.svc { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:3px 10px; font-size:12px; }
+.svc.ok { border-color:var(--ok); } .svc.bad { border-color:var(--login); color:var(--login); }
+button { padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+.wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+table { border-collapse:collapse; width:100%; }
+th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+td.detail { white-space:normal; word-break:break-all; min-width:200px; }
+th { color:var(--muted); font-weight:600; font-size:12px; }
+.kind-login { color:var(--login); font-weight:600; } .kind-connect { color:var(--connect); }
+.muted { color:var(--muted); }
+h2 { font-size:15px; margin:20px 0 8px; }
+.alerts { display:grid; gap:8px; }
+.alert { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--connect); border-radius:8px; padding:10px 12px; }
+.alert.login { border-left-color:var(--login); }
+.alert .t { font-weight:600; }
+.alert .when { color:var(--muted); font-size:12px; float:right; margin-left:8px; }
+.alert pre { margin:6px 0 0; white-space:pre-wrap; word-break:break-word; font:13px/1.45 ui-monospace, monospace; }
+.badge { color:var(--login); font-size:12px; margin-left:6px; }
+details.more { margin-top:6px; } details.more summary { cursor:pointer; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<h1>Honeypot</h1>
+<div class="bar" id="services"></div>
+<div class="bar">
+  <button id="test">Send test notification</button>
+  <span id="msg" class="muted"></span>
+</div>
+<h2>Alerts</h2>
+<div class="alerts" id="alerts"></div>
+<p class="muted" id="no-alerts" hidden>No alerts yet.</p>
+<h2>All events</h2>
+<div class="wrap">
+<table>
+  <thead><tr><th>Time</th><th>Kind</th><th>Service</th><th>Source</th><th>Device</th><th>MAC</th><th>Username</th><th>Password</th><th>Detail</th></tr></thead>
+  <tbody id="events"></tbody>
+</table>
+</div>
+<p class="muted" id="empty" hidden>No activity yet. That's good.</p>
+<script>
+// Everything shown here comes from attackers, so it is only ever set via textContent.
+function cell(text, cls) {
+  const td = document.createElement('td');
+  td.textContent = text ?? '';
+  if (cls) td.className = cls;
+  return td;
+}
+
+async function loadStatus() {
+  const r = await fetch('api/status');
+  const s = await r.json();
+  const box = document.getElementById('services');
+  box.replaceChildren(...Object.entries(s.services).map(([name, state]) => {
+    const el = document.createElement('span');
+    el.className = 'svc ' + (state.startsWith('listening') ? 'ok' : state.startsWith('failed') ? 'bad' : '');
+    el.textContent = `${name}: ${state}`;
+    return el;
+  }));
+}
+
+function deviceName(h) {
+  if (!h) return '';
+  const name = (h.ha_entities || [])[0] || h.mdns_name || h.netbios_name || h.dns_name || '';
+  return [name, h.vendor].filter(Boolean).join(' · ');
+}
+
+async function loadEvents() {
+  const [events, hosts] = await Promise.all([
+    fetch('api/events?limit=300').then(r => r.json()),
+    fetch('api/hosts').then(r => r.json()),
+  ]);
+  document.getElementById('empty').hidden = events.length > 0;
+  document.getElementById('events').replaceChildren(...events.map(e => {
+    const tr = document.createElement('tr');
+    tr.append(
+      cell(new Date(e.ts * 1000).toLocaleString()),
+      cell(e.kind, 'kind-' + e.kind),
+      cell(e.service),
+      cell(`${e.src_ip}:${e.src_port}`),
+      cell(deviceName(hosts[e.src_ip])),
+      cell(e.mac, 'muted'),
+      cell(e.username),
+      cell(e.password),
+      cell(e.detail, 'detail'),
+    );
+    return tr;
+  }));
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+async function loadAlerts() {
+  const alerts = await fetch('api/alerts?limit=50').then(r => r.json());
+  document.getElementById('no-alerts').hidden = alerts.length > 0;
+  document.getElementById('alerts').replaceChildren(...alerts.map(a => {
+    const card = el('div', 'alert ' + (a.kind || ''));
+    card.append(el('span', 'when', new Date(a.ts * 1000).toLocaleString()));
+    const title = el('div', 't', a.title);
+    if (a.delivered === false) title.append(el('span', 'badge', 'not delivered to phone'));
+    card.append(title, el('pre', null, a.message));
+    if (a.host) {
+      const more = el('details', 'more');
+      more.append(el('summary', null, 'All device details'), el('pre', null, JSON.stringify(a.host, null, 2)));
+      card.append(more);
+    }
+    return card;
+  }));
+}
+
+document.getElementById('test').onclick = async () => {
+  const msg = document.getElementById('msg');
+  msg.textContent = 'Sending…';
+  const r = await fetch('api/test', { method: 'POST' });
+  const j = await r.json();
+  msg.textContent = j.ok ? 'Sent. Check your phone.' : `Failed: ${j.error}`;
+};
+
+loadStatus();
+loadEvents();
+loadAlerts();
+setInterval(() => { loadEvents(); loadAlerts(); }, 10000);
+</script>
+</body>
+</html>
