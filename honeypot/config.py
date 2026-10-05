@@ -15,8 +15,11 @@ DEFAULTS = {
     "telnet_port": 23,
     "ftp_port": 21,
     "http_port": 80,
+    "smb_port": 445,
+    "mqtt_port": 1883,
     "tripwire_ports": [3389, 5900, 3306],
     "probe_back": True,
+    "mdns": True,
     # Persona overrides; empty = use the random per-install persona.
     "hostname": "",
     "ssh_banner": "",

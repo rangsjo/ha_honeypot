@@ -24,8 +24,11 @@
     "telnet_port": 23,
     "ftp_port": 21,
     "http_port": 80,
+    "smb_port": 445,
+    "mqtt_port": 1883,
     "tripwire_ports": [3389, 5900, 3306],
     "probe_back": true,
+    "mdns": true,
     "own_ip": true
   },
   "schema": {
@@ -39,8 +42,11 @@
     "telnet_port": "int(0,65535)",
     "ftp_port": "int(0,65535)",
     "http_port": "int(0,65535)",
+    "smb_port": "int(0,65535)",
+    "mqtt_port": "int(0,65535)",
     "tripwire_ports": ["int(1, 65535)"],
     "probe_back": "bool",
+    "mdns": "bool",
     "hostname": "str?",
     "ssh_banner": "str?",
     "telnet_banner": "str?",

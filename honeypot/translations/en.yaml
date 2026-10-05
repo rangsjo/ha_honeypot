@@ -29,12 +29,21 @@ configuration:
   http_port:
     name: HTTP port
     description: Fake web admin login page. 0 disables it.
+  smb_port:
+    name: SMB port
+    description: Fake file share that logs which SMB versions a client offers. Own-IP mode only, so it never takes the Samba add-on's port. 0 disables it.
+  mqtt_port:
+    name: MQTT port
+    description: Fake MQTT broker that captures client ids, usernames and passwords. Own-IP mode only, so it never takes the Mosquitto add-on's port. 0 disables it.
   tripwire_ports:
     name: Tripwire ports
     description: Plain TCP listeners that alert on any connection (defaults are RDP, VNC and MySQL).
   probe_back:
     name: Check intruder's ports
     description: Briefly test a few ports on the intruder's device to guess what it is (phone, Windows PC, camera, printer).
+  mdns:
+    name: Announce on the network (mDNS)
+    description: In own-IP mode, announce the fake NAS and its services (SMB, SSH, web) over Bonjour/mDNS so it appears in Finder, file managers and network browsers. Catches curious people, not just scanners.
   own_ip:
     name: Own IP
     description: Appear as a separate device on the LAN with its own MAC and IP (needs Ethernet; in a VM, a bridged adapter that allows other MACs). Falls back to Home Assistant's IP if it can't be set up.

@@ -22,9 +22,10 @@ from entities import Entities
 from events import EventStore
 from ha_api import HAClient
 from ignore import IgnoreList
+from mdns import Announcer
 from netns import OwnIP
 from notifier import Notifier
-from services import ftp, http, ssh, telnet, tripwire
+from services import ftp, http, mqtt, smb, ssh, telnet, tripwire
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("honeypot")
@@ -133,6 +134,8 @@ async def main() -> None:
             await own.stop()
             own = None
 
+    listening: dict[str, int] = {}
+
     async def launch(name: str, ports: list[int], starter) -> None:
         """Start a service on the first port that binds; later ports are fallbacks."""
         ports = [p for p in ports if p]
@@ -148,6 +151,7 @@ async def main() -> None:
                 log.warning("%s honeypot could not bind port %s: %s", name, port, e)
                 continue
             status[name] = f"listening on {port}" + (f" (fallback; {', '.join(errors)})" if errors else "")
+            listening[name] = port
             log.info("%s honeypot listening on port %s", name, port)
             return
         status[name] = "failed: " + ", ".join(errors)
@@ -164,8 +168,26 @@ async def main() -> None:
                  lambda port, **kw: ftp.start(port, report, who["ftp_banner"], **kw))
     await launch("http", [cfg["http_port"]],
                  lambda port, **kw: http.start(port, report, who["http_title"], who["http_server"], **kw))
+    # On HA's own IP these would take ports the Mosquitto or Samba add-ons need.
+    for name, module in (("smb", smb), ("mqtt", mqtt)):
+        port = cfg[f"{name}_port"]
+        if own:
+            await launch(name, [port], lambda p, m=module, **kw: m.start(p, report, **kw))
+        elif port:
+            status[name] = "own IP only"
     for port in cfg["tripwire_ports"]:
         await launch(f"tcp/{port}", [port], lambda p, **kw: tripwire.start(p, report, **kw))
+
+    announcer = None
+    if own and cfg["mdns"]:
+        announcer = Announcer(own.run_in_netns, who["hostname"])
+        try:
+            names = await asyncio.get_running_loop().run_in_executor(None, announcer.start, own.ip, listening)
+            status["mdns"] = f"{who['hostname']}.local: {', '.join(names) or 'no services'}"
+        except Exception as e:
+            log.error("mDNS announcement failed: %s", e)
+            status["mdns"] = f"failed: {e}"
+            announcer = None
 
     runner = web.AppRunner(ui.make_app(store, notifier, status, enricher, alerts, ignore=ignore), access_log=None)
     await runner.setup()
@@ -188,6 +210,8 @@ async def main() -> None:
                 await asyncio.sleep(30)
                 if own.refresh_ip():
                     status["own_ip"] = f"{own.ip} · MAC {who['mac']} · {who['hostname']}"
+                    if announcer:
+                        announcer.update_ip(own.ip)
         background(follow_dhcp())
 
     if ha.available:
@@ -201,6 +225,8 @@ async def main() -> None:
         loop.add_signal_handler(sig, stop.set)
     await stop.wait()
     log.info("Shutting down")
+    if announcer:
+        announcer.stop()  # goodbye packets, so it disappears from network browsers
     if own:
         await own.stop()  # releases the DHCP lease and removes the interface
 

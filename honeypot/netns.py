@@ -203,6 +203,10 @@ class OwnIP:
         """
         return self._executor.submit(socket.socket, family, type).result()
 
+    def run_in_netns(self, fn, *args):
+        """Run fn in the thread that lives in the honeypot's namespace (sockets it makes stay there)."""
+        return self._executor.submit(fn, *args).result()
+
     def listen_socket(self, port: int) -> socket.socket:
         s = self.socket()
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
