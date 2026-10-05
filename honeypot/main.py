@@ -13,6 +13,7 @@ from aiohttp import web
 import config
 import enrich
 import persona
+import privileges
 import ui
 from enrich import Enricher
 from netns import OwnIP
@@ -146,6 +147,8 @@ async def main() -> None:
             log.warning("Could not bind UI to %s (%s); binding all interfaces, ingress-only", HASSIO_GATEWAY, e)
     if ui_host == "0.0.0.0":
         await web.TCPSite(runner, ui_host, cfg["ui_port"]).start()
+    # Everything that needed root is done; the services now face attackers unprivileged.
+    status["privileges"] = privileges.drop(DATA_DIR)
     log.info("UI on %s:%s, alerts to %s (cooldown %ss)", ui_host, cfg["ui_port"], notifier.url, cfg["notify_cooldown"])
 
     stop = asyncio.Event()

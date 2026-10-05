@@ -20,6 +20,7 @@ Activity: 12 events since 5 min ago on ssh, telnet · users tried: root, pi
 - **Its own device on the LAN.** The honeypot gets its own MAC and DHCP lease, so it never looks like Home Assistant. It falls back to HA's IP when that isn't possible.
 - **A different look on every install.** A random persona (hostname, OS banners, MAC vendor, web page) means scanners can't learn to recognise it.
 - **Alerts that identify the intruder:** HA device name, hostnames (DNS/mDNS/NetBIOS), MAC vendor, open ports, activity summary.
+- **Unprivileged after startup.** Once its network setup is done, the add-on drops root and all its admin rights, so a bug in a fake service doesn't give the attacker your HA machine.
 - **Rate-limited alerts.** A port scan gives you one notification, not fifty. Tapping it opens the Honeypot panel with the full history.
 
 ## Install
@@ -51,6 +52,7 @@ honeypot/                add-on (Docker build context)
   main.py                startup: persona, own IP, services, panel, alerts
   config.py              options.json + env-var overrides
   persona.py             random per-install banners/hostname/MAC, saved in /data
+  privileges.py          drop root + all capabilities after startup
   netns.py, udhcpc.script  own IP: macvlan + private network namespace + DHCP
   services/              ssh, telnet, ftp, http, tripwire
   enrich.py              device identification (vendor, DNS/mDNS/NetBIOS, HA entities, ports)

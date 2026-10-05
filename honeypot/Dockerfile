@@ -16,6 +16,7 @@ RUN python -c "import urllib.request; urllib.request.urlretrieve('https://www.wi
 
 COPY . /app
 
-RUN chmod +x /app/run.sh /app/udhcpc.script
+RUN chmod +x /app/run.sh /app/udhcpc.script \
+    && useradd --system --no-create-home --shell /usr/sbin/nologin honeypot
 
 CMD ["/app/run.sh"]

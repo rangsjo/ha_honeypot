@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+- **Runs unprivileged after startup:** once own IP is set up and the ports are open, the add-on switches to an unprivileged user with no capabilities. The fake services, which face attackers, no longer run as root with `NET_ADMIN`/`SYS_ADMIN`. The panel shows the result.
+- **Own IP helpers are stopped through a pipe** instead of signals, so the DHCP lease is released on stop (and if the add-on crashes).
+- Clearer message when the network namespace can't be created.
+
 ## 1.0.1
 
 - **Clearer own IP errors:** when DHCP replies or traffic for the honeypot's MAC don't arrive, the log and panel say so and point to the VM network setting.

@@ -137,6 +137,7 @@ Bugs and ideas: [GitHub issues](https://github.com/rangsjo/ha_honeypot/issues). 
 
 - No service ever accepts a login or runs a command. They only read a few short lines, with timeouts and length limits.
 - The panel is only reachable through HA (ingress), not from the LAN.
-- `NET_ADMIN` and `SYS_ADMIN` are needed only to create the own-IP interface and namespace.
+- **The fake services run unprivileged.** Root, `NET_ADMIN` and `SYS_ADMIN` are needed only at startup, to create the own-IP interface and namespace and to open the low ports. After that the add-on switches to an unprivileged user with no capabilities and *no new privileges*. A bug in a fake service then gives an attacker an unprivileged process, not control over the HA machine. Two tiny helpers keep root: the one holding the namespace open, and the DHCP client renewing the honeypot's lease. The panel's `privileges` line confirms the drop.
+- **In a VM, promiscuous mode** lets the HA VM receive traffic addressed to other MACs that reaches the host's network card. On a switched network that's mostly the host's own traffic. If HA were compromised, it could read that traffic. On a dedicated VM host that's negligible. On your everyday PC, weigh it against the better disguise, or turn off `own_ip`.
 - **Do not port-forward these ports from your router.** This is a LAN tripwire. On the internet it would alert you constantly.
 - Captured passwords are what intruders *tried*. If one of them is a real password of yours, a device on your LAN knows it. Change it.

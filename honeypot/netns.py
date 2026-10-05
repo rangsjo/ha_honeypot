@@ -8,8 +8,11 @@ Doing this in a separate namespace, rather than adding an address to HA's own
 interface, keeps HA's routing and ARP untouched: the host never learns the
 honeypot's IP, so it can't answer for it with HA's MAC.
 
-The namespace is held open by a `sleep` process. If the add-on dies, that
-process dies with the container and the kernel deletes the interface.
+The namespace is held open by a small helper process. The helpers run as root
+(the add-on itself drops root after startup), so they are stopped by closing
+their stdin rather than by a signal: a pipe needs no privileges, and it also
+closes if the add-on crashes. The DHCP helper then releases its lease, and once
+the namespace is gone the kernel deletes the interface.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import logging
 import os
 import re
 import socket
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -66,8 +70,8 @@ class OwnIP:
         self.gateway = gateway
         self.dhcp_timeout = dhcp_timeout
         self.ip: str | None = None
-        self._holder: asyncio.subprocess.Process | None = None
-        self._dhcp: asyncio.subprocess.Process | None = None
+        self._holder: subprocess.Popen | None = None
+        self._dhcp: subprocess.Popen | None = None
         self._ns_fd: int | None = None
         self._executor: ThreadPoolExecutor | None = None
 
@@ -81,10 +85,11 @@ class OwnIP:
         if Path(f"/sys/class/net/{parent}/wireless").exists():
             raise RuntimeError(f"{parent} is Wi-Fi; own_ip needs HA on Ethernet")
 
-        self._holder = await asyncio.create_subprocess_exec("unshare", "--net", "--", "sleep", "infinity")
+        self._holder = subprocess.Popen(["unshare", "--net", "--", "sh", "-c", "read _"],
+                                        stdin=subprocess.PIPE)
         own_ns = os.readlink("/proc/self/ns/net")
         for _ in range(50):
-            if self._holder.returncode is not None:
+            if self._holder.poll() is not None:
                 break  # unshare refused (no SYS_ADMIN)
             try:
                 if os.readlink(f"/proc/{self._holder.pid}/ns/net") != own_ns:
@@ -93,7 +98,9 @@ class OwnIP:
                 pass
             await asyncio.sleep(0.05)
         else:
-            raise RuntimeError("could not create network namespace (needs SYS_ADMIN)")
+            self._holder.poll()
+        if self._holder.returncode is not None or os.readlink(f"/proc/{self._holder.pid}/ns/net") == own_ns:
+            raise RuntimeError("could not create a network namespace (the add-on needs SYS_ADMIN)")
         self._ns_fd = os.open(f"/proc/{self._holder.pid}/ns/net", os.O_RDONLY)
         self._executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="netns",
@@ -111,10 +118,11 @@ class OwnIP:
             if self.gateway:
                 await _run(*self._ns("ip", "route", "add", "default", "via", self.gateway))
         else:
-            self._dhcp = await asyncio.create_subprocess_exec(
-                *self._ns("udhcpc", "-f", "-R", "-i", IFACE, "-s", str(DHCP_SCRIPT),
-                          "-x", f"hostname:{self.hostname}"),
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+            # udhcpc -R releases the lease when terminated; the shell does that on stdin EOF.
+            self._dhcp = subprocess.Popen(
+                self._ns("sh", "-c", 'udhcpc "$@" & u=$!; read _; kill $u; wait $u', "sh",
+                         "-f", "-R", "-i", IFACE, "-s", str(DHCP_SCRIPT), "-x", f"hostname:{self.hostname}"),
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.dhcp_timeout
@@ -176,13 +184,17 @@ class OwnIP:
         return s
 
     async def stop(self) -> None:
-        for proc in (self._dhcp, self._holder):
-            if proc and proc.returncode is None:
-                proc.terminate()
-                try:
-                    await asyncio.wait_for(proc.wait(), 5)
-                except asyncio.TimeoutError:
-                    proc.kill()
+        for proc in (self._dhcp, self._holder):  # DHCP first, so it can still send its release
+            if not proc:
+                continue
+            if proc.stdin and not proc.stdin.closed:
+                proc.stdin.close()
+            for _ in range(50):
+                if proc.poll() is not None:
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                log.warning("Own-IP helper %s did not exit; it ends with the container", proc.pid)
         if self._executor:
             self._executor.shutdown(wait=False)
         if self._ns_fd is not None:
