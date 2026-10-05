@@ -12,7 +12,13 @@ By default the honeypot appears as a **separate device on your LAN** (`own_ip`).
 | Telnet login prompt | 23 | username + password |
 | FTP | 21 | `USER` / `PASS` |
 | HTTP (web admin login page) | 80 | requested path, User-Agent, form and Basic-auth credentials |
+| MQTT broker | 1883 (own IP only) | client id, username + password |
+| SMB file share | 445 (own IP only) | the SMB versions the client offers |
 | TCP tripwires (RDP, VNC, MySQL) | 3389, 5900, 3306 | the connection and its first bytes |
+
+In own-IP mode the honeypot also:
+- **Detects network scans:** it notices when a device looks for its address (ARP or ping), which scanners do before probing any port. Your router is ignored.
+- **Announces itself over mDNS/Bonjour** as a file server with SMB, SSH and web services, so it appears in Finder, file managers and network browsers and attracts curious people.
 
 Every login is refused. On first start the add-on picks a random but consistent **persona**: hostname, SSH/Telnet/FTP banners from one OS, web page title, `Server` header and a MAC vendor (Synology, QNAP, Intel or Raspberry Pi). It keeps that persona in `/data/persona.json`. Every install looks different, so scanners can't learn to skip this add-on.
 
@@ -82,7 +88,7 @@ The alert also warns when the source is outside your LAN.
 
 **Rate limiting:** each source IP gets at most one *connection* alert and one *login* alert per `notify_cooldown`. Later alerts say how many events were held back.
 
-**Nothing is lost:** the panel's **Alerts** section keeps every alert with full details, including alerts that could not be delivered while HA was restarting. **All events** lists every single connection.
+**The panel** shows the last 14 days, the top devices and every event. Click a device to see its full history. **Nothing is lost:** the **Alerts** section keeps every alert with full details, including alerts that could not be delivered while HA was restarting. **All events** lists every single connection.
 
 The webhook payload also has the raw fields, if you want your own formatting or a sensor: `service`, `kind` (`connect`/`login`), `src_ip`, `src_port`, `mac`, `username`, `password`, `detail`, `suppressed`, `ts`, `host` and `activity`.
 
@@ -111,7 +117,10 @@ Your router may list the honeypot as a new device (often named after the MAC ven
 | `ignore_ips` | `[]` | Never log or alert for these IPs (e.g. your network scanner). |
 | `ssh_port` / `ssh_fallback_port` | `22` / `2222` | SSH uses the fallback port if the first one is taken. |
 | `telnet_port`, `ftp_port`, `http_port` | `23`, `21`, `80` | `0` disables a service. |
+| `smb_port`, `mqtt_port` | `445`, `1883` | Own-IP mode only, so they never take the Samba or Mosquitto add-on's ports. `0` disables. |
 | `tripwire_ports` | `[3389, 5900, 3306]` | Plain TCP listeners. |
+| `detect_discovery` | `true` | Alert on ARP/ping sweeps of the honeypot's IP (own-IP mode). |
+| `mdns` | `true` | Announce the fake NAS over mDNS (own-IP mode). |
 | `probe_back` | `true` | Check a few of the intruder's ports to guess the device type. |
 | `own_ip` | `true` | Appear as a separate LAN device (see above). |
 | `own_ip_interface` | | Network interface to attach to. Default: the one with HA's default route. |

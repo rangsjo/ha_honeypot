@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0
+
+- **Network scan detection:** ARP and ping sweeps of the honeypot's IP raise a *network scan* alert, usually before any port is touched. #4
+- **mDNS announcement:** the fake NAS appears in Finder, file managers and network browsers with SMB, SSH and web services. #5
+- **MQTT and SMB bait:** a fake MQTT broker captures client ids and credentials; an SMB share logs the client's SMB versions. Both run only in own-IP mode. #6
+- **Panel statistics:** last 14 days, top devices, and per-device history by clicking a device. #10
+- **DHCP address changes** are followed in the panel and mDNS. #11
+- **Prebuilt images** from GHCR: installs no longer build on the device. #8
+- Days and "today" follow your time zone.
+
 ## 1.2.0
 
 - **No automation needed:** set `notify_targets` (e.g. `notify.mobile_app_my_phone`) and the add-on sends notifications itself. #1

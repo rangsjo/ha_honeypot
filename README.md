@@ -18,7 +18,9 @@ Activity: 12 events since 5 min ago on ssh, telnet · users tried: root, pi
 
 ## Features
 
-- **Fake SSH, Telnet, FTP and HTTP login services**, plus TCP tripwires on RDP, VNC and MySQL ports. They log every credential tried and accept none.
+- **Fake SSH, Telnet, FTP, HTTP and MQTT logins** and an SMB share, plus tripwires on RDP, VNC and MySQL ports. They log every credential tried and accept none.
+- **Catches scanners early.** The honeypot notices when a device looks for its address (ARP and ping sweeps), before any port is touched.
+- **Lures people too.** It announces itself over mDNS, so the fake NAS shows up in Finder and network browsers.
 - **Its own device on the LAN.** The honeypot gets its own MAC and DHCP lease, so it never looks like Home Assistant. It falls back to HA's IP when that isn't possible.
 - **A different look on every install.** A random persona (hostname, OS banners, MAC vendor, web page) means scanners can't learn to recognise it.
 - **Alerts that identify the intruder:** HA device name, hostnames (DNS/mDNS/NetBIOS), MAC vendor, open ports, activity summary.
