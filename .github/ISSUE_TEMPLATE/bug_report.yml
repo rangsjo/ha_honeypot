@@ -1,0 +1,42 @@
+name: Bug report
+description: Something doesn't work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "For security issues, please use **Security → Report a vulnerability** instead of a public issue."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Add-on version
+      placeholder: "1.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How does Home Assistant run?
+      options:
+        - Home Assistant OS on hardware (Pi, NUC, Green/Yellow)
+        - Home Assistant OS in a VM (which hypervisor? Say below)
+        - Supervised
+        - Standalone Docker Compose
+    validations:
+      required: true
+  - type: dropdown
+    id: own_ip
+    attributes:
+      label: Own IP mode
+      options: ["Working (panel shows its own IP)", "Fell back to HA's IP", "Disabled"]
+  - type: textarea
+    id: log
+    attributes:
+      label: Add-on log
+      description: Settings → Add-ons → Honeypot → Log. Remove anything private.
+      render: text

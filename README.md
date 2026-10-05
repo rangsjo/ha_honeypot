@@ -1,5 +1,7 @@
 <img src="honeypot/logo.png" alt="Honeypot" width="250">
 
+[![CI](https://github.com/rangsjo/ha_honeypot/actions/workflows/ci.yaml/badge.svg)](https://github.com/rangsjo/ha_honeypot/actions/workflows/ci.yaml)
+
 A Home Assistant add-on that puts a fake **NAS** on your network and sends you a push notification the moment anything touches it.
 
 Nothing legitimate ever connects to the honeypot. So any connection or login attempt means a device on your LAN is scanning or probing: a compromised IoT gadget, malware on a laptop, or someone on your Wi-Fi.
