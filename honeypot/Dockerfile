@@ -3,7 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # iproute2 + udhcpc for the own_ip option (nsenter/unshare come with the base image)
-RUN apt-get update && apt-get install -y --no-install-recommends iproute2 udhcpc \
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 udhcpc tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

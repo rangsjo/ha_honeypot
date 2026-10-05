@@ -57,5 +57,17 @@ class EventStore:
                 log.error("Could not write event log: %s", e)
         return event
 
+    def history(self) -> list[dict]:
+        """Every event still in the log file (falls back to memory without a file)."""
+        if not self._path or not self._path.exists():
+            return list(self._events)
+        out = []
+        for line in self._path.read_text().splitlines():
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return out
+
     def recent(self, limit: int = 200) -> list[dict]:
         return list(self._events)[-limit:][::-1]

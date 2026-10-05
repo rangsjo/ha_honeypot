@@ -8,6 +8,7 @@ from aiohttp import web
 from enrich import Enricher
 from events import EventStore
 from ignore import IgnoreList
+from stats import summarize
 from notifier import Notifier
 
 HTML_PATH = Path(__file__).parent / "templates" / "index.html"
@@ -33,7 +34,13 @@ def make_app(store: EventStore, notifier: Notifier, status: dict,
 
     async def api_events(request: web.Request) -> web.Response:
         limit = min(int(request.query.get("limit", 200)), 1000)
+        ip = request.query.get("ip")
+        if ip:  # per-device history, from the whole log
+            return web.json_response([e for e in reversed(store.history()) if e.get("src_ip") == ip][:limit])
         return web.json_response(store.recent(limit))
+
+    async def api_stats(request: web.Request) -> web.Response:
+        return web.json_response(summarize(store.history(), enricher.cached() if enricher else {}))
 
     async def api_status(request: web.Request) -> web.Response:
         return web.json_response({"services": status, "webhook": notifier.url})
@@ -71,6 +78,7 @@ def make_app(store: EventStore, notifier: Notifier, status: dict,
     app.router.add_get("/api/events", api_events)
     app.router.add_get("/api/status", api_status)
     app.router.add_get("/api/hosts", api_hosts)
+    app.router.add_get("/api/stats", api_stats)
     app.router.add_get("/api/alerts", api_alerts)
     app.router.add_post("/api/test", api_test)
     app.router.add_get("/api/ignored", api_ignored)

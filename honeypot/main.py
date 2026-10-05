@@ -182,6 +182,14 @@ async def main() -> None:
     status["privileges"] = privileges.drop(DATA_DIR)
     log.info("UI on %s:%s, alerts to %s (cooldown %ss)", ui_host, cfg["ui_port"], notifier.url, cfg["notify_cooldown"])
 
+    if own and not cfg["own_ip_address"]:
+        async def follow_dhcp() -> None:
+            while True:
+                await asyncio.sleep(30)
+                if own.refresh_ip():
+                    status["own_ip"] = f"{own.ip} · MAC {who['mac']} · {who['hostname']}"
+        background(follow_dhcp())
+
     if ha.available:
         background(entities.run())
         background(ha.listen("mobile_app_notification_action", on_notification_action,

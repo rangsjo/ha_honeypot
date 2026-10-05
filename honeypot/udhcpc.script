@@ -15,6 +15,8 @@ case "$1" in
         if [ -n "$router" ]; then
             ip route replace default via "${router%% *}" dev "$interface"
         fi
+        # The add-on runs unprivileged by now; this is how it learns the address.
+        echo "$ip" > /tmp/honeypot-own-ip.new && mv /tmp/honeypot-own-ip.new /tmp/honeypot-own-ip
         ;;
 esac
 exit 0

@@ -33,6 +33,19 @@ h2 { font-size:15px; margin:20px 0 8px; }
 .alert .actions { margin-top:8px; }
 .chip { display:inline-flex; gap:6px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:2px 4px 2px 10px; font-size:12px; }
 .chip button { padding:2px 8px; font-size:12px; }
+.stats { display:grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap:12px; }
+@media (max-width: 700px) { .stats { grid-template-columns: 1fr; } }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; }
+.chart { display:flex; align-items:flex-end; gap:4px; height:120px; }
+.chart .col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; min-width:0; }
+.chart .b { width:100%; background:var(--connect); border-radius:3px 3px 0 0; min-height:1px; position:relative; }
+.chart .b .l { position:absolute; left:0; right:0; bottom:0; background:var(--login); border-radius:3px 3px 0 0; }
+.chart .d { font-size:10px; color:var(--muted); margin-top:4px; }
+.chart .n { font-size:10px; color:var(--muted); }
+.legend { font-size:12px; color:var(--muted); margin-top:6px; }
+.legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 4px 0 10px; vertical-align:middle; }
+table.top td { cursor:pointer; } table.top tr:hover td { background:var(--bg); }
+.filter { font-size:13px; }
 details.more { margin-top:6px; } details.more summary { cursor:pointer; color:var(--muted); font-size:12px; }
 </style>
 </head>
@@ -43,12 +56,19 @@ details.more { margin-top:6px; } details.more summary { cursor:pointer; color:va
   <button id="test">Send test notification</button>
   <span id="msg" class="muted"></span>
 </div>
+<h2>Last 14 days</h2>
+<div class="stats">
+  <div class="card"><div class="chart" id="chart"></div>
+    <div class="legend"><i style="background:var(--connect)"></i>connections<i style="background:var(--login)"></i>login attempts</div></div>
+  <div class="card"><table class="top"><thead><tr><th>Top devices</th><th>Events</th></tr></thead><tbody id="top"></tbody></table>
+    <p class="muted" id="no-top" hidden>Nobody yet.</p></div>
+</div>
 <h2>Alerts</h2>
 <div class="alerts" id="alerts"></div>
 <p class="muted" id="no-alerts" hidden>No alerts yet.</p>
 <h2>Ignored devices</h2>
 <div class="bar" id="ignored"></div>
-<h2>All events</h2>
+<h2>All events <span class="filter" id="filter"></span></h2>
 <div class="wrap">
 <table>
   <thead><tr><th>Time</th><th>Kind</th><th>Service</th><th>Source</th><th>Device</th><th>MAC</th><th>Username</th><th>Password</th><th>Detail</th></tr></thead>
@@ -83,14 +103,54 @@ function deviceName(h) {
   return [name, h.vendor].filter(Boolean).join(' · ');
 }
 
+let deviceFilter = null;
+
+function setFilter(ip) {
+  deviceFilter = ip;
+  const f = document.getElementById('filter');
+  f.replaceChildren();
+  if (ip) {
+    const b = el('button', null, 'Show all');
+    b.onclick = () => setFilter(null);
+    f.append(el('span', 'muted', `· only ${ip} `), b);
+    document.getElementById('events').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  loadEvents();
+}
+
+async function loadStats() {
+  const s = await fetch('api/stats').then(r => r.json());
+  const max = Math.max(1, ...s.days.map(d => d.events));
+  document.getElementById('chart').replaceChildren(...s.days.map(d => {
+    const col = el('div', 'col');
+    col.title = `${d.day}: ${d.events} events, ${d.logins} login attempts`;
+    const bar = el('div', 'b');
+    bar.style.height = `${(d.events / max) * 100}%`;
+    const login = el('div', 'l');
+    login.style.height = d.events ? `${(d.logins / d.events) * 100}%` : '0';
+    bar.append(login);
+    col.append(el('div', 'n', d.events || ''), bar, el('div', 'd', d.day.slice(8)));
+    return col;
+  }));
+  document.getElementById('no-top').hidden = s.top.length > 0;
+  document.getElementById('top').replaceChildren(...s.top.map(t => {
+    const tr = document.createElement('tr');
+    tr.append(cell(t.name ? `${t.name} (${t.ip})` : t.ip), cell(t.events));
+    tr.onclick = () => setFilter(t.ip);
+    return tr;
+  }));
+}
+
 async function loadEvents() {
   const [events, hosts] = await Promise.all([
-    fetch('api/events?limit=300').then(r => r.json()),
+    fetch(deviceFilter ? `api/events?limit=500&ip=${encodeURIComponent(deviceFilter)}` : 'api/events?limit=300').then(r => r.json()),
     fetch('api/hosts').then(r => r.json()),
   ]);
   document.getElementById('empty').hidden = events.length > 0;
   document.getElementById('events').replaceChildren(...events.map(e => {
     const tr = document.createElement('tr');
+    tr.onclick = () => setFilter(e.src_ip);
+    tr.style.cursor = 'pointer';
     tr.append(
       cell(new Date(e.ts * 1000).toLocaleString()),
       cell(e.kind, 'kind-' + e.kind),
@@ -169,7 +229,8 @@ loadStatus();
 loadEvents();
 loadAlerts();
 loadIgnored();
-setInterval(() => { loadEvents(); loadAlerts(); }, 10000);
+loadStats();
+setInterval(() => { loadEvents(); loadAlerts(); loadStats(); }, 10000);
 </script>
 </body>
 </html>

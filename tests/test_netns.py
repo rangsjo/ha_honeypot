@@ -29,3 +29,14 @@ def test_persona_mac_is_a_real_vendor_prefix():
 def test_parse_gateway():
     assert netns.parse_gateway("default via 192.168.1.1 dev honeypot0\n") == "192.168.1.1"
     assert netns.parse_gateway("192.168.1.0/24 dev honeypot0 proto kernel\n") is None
+
+
+def test_refresh_ip_follows_dhcp_renewal(tmp_path):
+    own = netns.OwnIP("00:11:32:00:00:01", "nas")
+    own.ip = "192.168.1.191"
+    f = tmp_path / "ip"
+    assert own.refresh_ip(f) is None          # no file yet
+    f.write_text("192.168.1.191\n")
+    assert own.refresh_ip(f) is None          # unchanged
+    f.write_text("192.168.1.77\n")
+    assert own.refresh_ip(f) == "192.168.1.77" and own.ip == "192.168.1.77"

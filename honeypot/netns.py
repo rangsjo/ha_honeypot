@@ -34,6 +34,7 @@ RECEIVE_HINT = ("Traffic for the honeypot's own MAC doesn't arrive. In a VM, set
                 "bridged and allow other MACs (VirtualBox: Promiscuous Mode 'Allow All'; Hyper-V: MAC "
                 "address spoofing). On Wi-Fi, own IP can't work.")
 DHCP_SCRIPT = Path(__file__).parent / "udhcpc.script"
+IP_FILE = Path("/tmp/honeypot-own-ip")  # written by udhcpc.script on every lease
 
 
 async def _run(*args: str, check: bool = True) -> str:
@@ -176,6 +177,18 @@ class OwnIP:
             await asyncio.sleep(0.3)
         raise RuntimeError(f"DHCP gave {self.ip} (as broadcast), but replies sent to the honeypot's MAC "
                            f"don't arrive: the gateway {gateway} can't be reached. {RECEIVE_HINT}")
+
+    def refresh_ip(self, ip_file: Path = IP_FILE) -> str | None:
+        """New address if a DHCP renewal changed it, else None."""
+        try:
+            ip = ip_file.read_text().strip()
+        except OSError:
+            return None
+        if ip and ip != self.ip:
+            old, self.ip = self.ip, ip
+            log.warning("Own IP changed from %s to %s (DHCP)", old, ip)
+            return ip
+        return None
 
     @property
     def arp_path(self) -> Path:
