@@ -7,6 +7,8 @@ from pathlib import Path
 DEFAULTS = {
     "ha_url": "http://127.0.0.1:8123",
     "notify_targets": [],
+    "critical_alerts": False,
+    "persistent_notification": True,
     "webhook_id": "",
     "notify_cooldown": 600,
     "ignore_ips": [],

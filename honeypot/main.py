@@ -90,13 +90,16 @@ async def main() -> None:
         background(entities.publish({entities_module.LAST}))
         if ha.available:  # automation trigger + logbook entry, independent of phone delivery
             background(ha.fire_event("honeypot_alert", payload))
+            if cfg["persistent_notification"]:
+                background(channels.persistent_notification(ha, payload))
 
     panel = await panel_path()
     log.info("Alert tap opens %s", panel or "(panel path unknown)")
     targets = [t for t in cfg["notify_targets"] if t.strip()]
     notifier = Notifier(cfg["ha_url"], cfg["webhook_id"], cfg["notify_cooldown"], describe=describe,
                         on_alert=on_alert, extra={"panel_path": panel or "/"},
-                        channels=[channels.notify_channel(ha, t) for t in targets] if ha.available else [])
+                        channels=[channels.notify_channel(ha, t, cfg["critical_alerts"]) for t in targets]
+                        if ha.available else [])
     log.info("Alerts go to: %s", ", ".join(
         ([f"notify.{channels.notify_service(t)}" for t in targets] if ha.available else [])
         + ([f"webhook {cfg['webhook_id']}"] if notifier.url else [])) or "nowhere (set notify_targets)")

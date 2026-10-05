@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0
+
+- **Critical alerts** option: alerts sound even on silent or Do Not Disturb, like a critical-alert automation did.
+- **HA notification bell:** each alert is also kept as a persistent notification (one per device) until dismissed. Option `persistent_notification`, on by default.
+
 ## 1.3.1
 
 - **Fix:** the add-on was missing from the store since 1.2.0's prebuilt-image change, because of an invalid option schema (`int(1, 65535)`). A new test now validates the manifest the way the Supervisor does.

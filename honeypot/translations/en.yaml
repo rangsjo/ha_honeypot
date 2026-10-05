@@ -5,6 +5,12 @@ configuration:
   notify_targets:
     name: Notify targets
     description: Where alerts go, e.g. notify.mobile_app_my_phone. Find yours under Developer tools → Actions, search mobile_app. No automation needed.
+  critical_alerts:
+    name: Critical alerts
+    description: Sound even when the phone is on silent or Do Not Disturb (iOS critical alert at full volume, Android alarm channel). iOS asks once to allow critical alerts for the Home Assistant app.
+  persistent_notification:
+    name: Show in HA notifications
+    description: Also keep each alert in Home Assistant's notification bell until dismissed (one per device).
   webhook_id:
     name: Webhook ID (advanced)
     description: Optional. Also POST every alert to this HA webhook, for your own automations. Empty disables it. Most setups don't need it, since alerts also fire a honeypot_alert event.

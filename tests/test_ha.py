@@ -28,6 +28,14 @@ def test_notification_data_has_panel_link_and_ignore_button():
     assert "actions" not in channels.notification_data({"src_ip": ""})  # test alert
 
 
+def test_critical_alerts_sound_on_silent():
+    data = channels.notification_data({"src_ip": "192.168.1.9"}, critical=True)
+    assert data["push"]["sound"] == {"name": "default", "critical": 1, "volume": 1.0}
+    assert data["push"]["interruption-level"] == "critical"
+    assert data["channel"] == "alarm_stream"
+    assert "channel" not in channels.notification_data({"src_ip": "192.168.1.9"})
+
+
 def test_parse_ignore_action_rejects_garbage():
     assert channels.parse_ignore_action("HONEYPOT_IGNORE_192.168.1.9") == "192.168.1.9"
     assert channels.parse_ignore_action("HONEYPOT_IGNORE_not-an-ip") is None

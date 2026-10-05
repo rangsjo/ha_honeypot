@@ -28,6 +28,8 @@ Every login is refused. On first start the add-on picks a random but consistent 
 
 In the add-on's **Configuration** tab, add your phone to **Notify targets**, e.g. `notify.mobile_app_my_phone`. To find the name, go to Developer tools → Actions and search `mobile_app`. Add several targets to alert several phones. No automation is needed.
 
+Turn on **Critical alerts** to make alerts sound even when the phone is on silent or Do Not Disturb. iOS asks once to allow critical alerts for the Home Assistant app. Each alert also stays in HA's notification bell until you dismiss it (option **Show in HA notifications**).
+
 Alerts open the Honeypot panel when tapped, break through Focus on iPhone (turn on **Settings → Notifications → Home Assistant → Time Sensitive Notifications**), and have an **Ignore this device** button for false alarms, such as your own network scanner.
 
 ### 2. Start and test
