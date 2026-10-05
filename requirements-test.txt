@@ -1,2 +1,3 @@
 pytest
 -r honeypot/requirements.txt
+pyyaml
