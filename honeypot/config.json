@@ -6,7 +6,6 @@
   "url": "https://github.com/rangsjo/ha_honeypot",
   "arch": ["amd64", "aarch64"],
   "startup": "services",
-  "boot": "auto",
   "host_network": true,
   "homeassistant_api": true,
   "privileged": ["NET_ADMIN", "SYS_ADMIN"],
