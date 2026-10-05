@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- **No automation needed:** set `notify_targets` (e.g. `notify.mobile_app_my_phone`) and the add-on sends notifications itself. #1
+- **Native entities and an event:** `binary_sensor.honeypot_intrusion`, `sensor.honeypot_last_intruder`, `sensor.honeypot_events_today` and a `honeypot_alert` event for automations and the logbook. #2
+- **Ignore this device:** a button on every notification, plus Ignore and Un-ignore in the panel. Ignored devices are kept in `/data/ignored.json`. #3
+- The webhook is now optional (`webhook_id` empty by default for new installs).
+- Standalone Docker: `HA_API_URL` + `HA_TOKEN` enable the same features with a long-lived token.
+
 ## 1.1.3
 
 - **Own IP in VMs:** if traffic for the honeypot's MAC doesn't arrive, the add-on enables promiscuous mode on HA's network interface and checks again. Some virtual network cards ignore the extra MAC otherwise.

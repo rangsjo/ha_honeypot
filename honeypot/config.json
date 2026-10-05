@@ -1,6 +1,6 @@
 {
   "name": "Honeypot",
-  "version": "1.1.3",
+  "version": "1.2.0",
   "slug": "honeypot",
   "description": "Fake SSH, Telnet, FTP and HTTP services that alert you through Home Assistant when anything on your network touches them.",
   "url": "https://github.com/rangsjo/ha_honeypot",
@@ -16,7 +16,7 @@
   "panel_title": "Honeypot",
   "options": {
     "ha_url": "http://127.0.0.1:8123",
-    "webhook_id": "honeypot_alert",
+    "notify_targets": [],
     "notify_cooldown": 600,
     "ignore_ips": [],
     "ssh_port": 22,
@@ -30,7 +30,8 @@
   },
   "schema": {
     "ha_url": "str",
-    "webhook_id": "str",
+    "notify_targets": ["str"],
+    "webhook_id": "str?",
     "notify_cooldown": "int(0,)",
     "ignore_ips": ["str"],
     "ssh_port": "int(0,65535)",

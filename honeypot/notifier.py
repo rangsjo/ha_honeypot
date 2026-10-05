@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 Sender = Callable[[str, dict], Awaitable[None]]
 Describer = Callable[[dict], Awaitable[dict]]
 AlertSink = Callable[[dict], None]
+Channel = Callable[[dict], Awaitable[None]]
 
 
 def _ago(seconds: float) -> str:
@@ -84,15 +85,17 @@ async def _post(url: str, payload: dict) -> None:
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
         async with session.post(url, json=payload) as r:
             if r.status >= 300:
-                log.warning("HA webhook returned %s", r.status)
+                raise RuntimeError(f"HA webhook returned {r.status}")
 
 
 class Notifier:
     def __init__(self, ha_url: str, webhook_id: str, cooldown: float,
                  send: Sender = _post, clock: Callable[[], float] = time.monotonic,
                  describe: Describer | None = None, on_alert: AlertSink | None = None,
-                 extra: dict | None = None):
-        self.url = f"{ha_url.rstrip('/')}/api/webhook/{webhook_id}"
+                 extra: dict | None = None, channels: list[Channel] | None = None):
+        # The webhook is optional now that alerts can go straight to notify targets.
+        self.url = f"{ha_url.rstrip('/')}/api/webhook/{webhook_id}" if webhook_id else None
+        self.channels = list(channels or [])
         self._cooldown = cooldown
         self._send = send
         self._clock = clock
@@ -126,16 +129,38 @@ class Notifier:
         payload = {"title": title, "message": message, "suppressed": suppressed,
                    **event, **context, **self.extra}
         try:
-            await self._send(self.url, payload)
+            delivered = await self._deliver(payload)
         except Exception as e:
             self._record(payload, delivered=False)
-            log.error("HA webhook failed: %s", e)
+            log.error("Alert delivery failed: %s", e)
             # Let the next event from this host retry instead of waiting out the cooldown.
             key = (event["src_ip"], event["kind"])
             self._last_sent.pop(key, None)
             self._suppressed[key] = self._suppressed.get(key, 0) + suppressed + 1
             return False
-        self._record(payload, delivered=True)
+        self._record(payload, delivered=delivered)
+        return delivered
+
+    async def _deliver(self, payload: dict) -> bool:
+        """Send to the webhook and every channel. Raises only if all of them fail.
+
+        Returns False when nothing is configured, so the alert is kept in the
+        panel without retrying.
+        """
+        senders = ([lambda p: self._send(self.url, p)] if self.url else []) + self.channels
+        if not senders:
+            log.warning("No notification target configured; alert only shown in the panel")
+            return False
+        errors = []
+        for send in senders:
+            try:
+                await send(payload)
+            except Exception as e:
+                errors.append(str(e))
+        if len(errors) == len(senders):
+            raise RuntimeError("; ".join(errors))
+        for e in errors:
+            log.warning("One alert channel failed: %s", e)
         return True
 
     def _record(self, payload: dict, delivered: bool) -> None:
@@ -146,8 +171,9 @@ class Notifier:
                 log.error("Could not save alert: %s", e)
 
     async def test(self) -> None:
-        await self._send(self.url, {
+        if not await self._deliver({
             "title": "Honeypot: test alert",
             "message": "If you can read this, honeypot alerts reach your phone.",
             "kind": "test", "service": "test", "src_ip": "", "ts": time.time(), **self.extra,
-        })
+        }):
+            raise RuntimeError("no notification target configured (set notify_targets)")

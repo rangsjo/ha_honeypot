@@ -1,10 +1,13 @@
 configuration:
   ha_url:
-    name: Home Assistant URL
-    description: Where alerts are sent. The add-on uses host networking, so http://127.0.0.1:8123 reaches Home Assistant.
+    name: Home Assistant URL (webhook only)
+    description: Only used for the webhook. The add-on uses host networking, so http://127.0.0.1:8123 reaches Home Assistant.
+  notify_targets:
+    name: Notify targets
+    description: Where alerts go, e.g. notify.mobile_app_my_phone. Find yours under Developer tools → Actions, search mobile_app. No automation needed.
   webhook_id:
-    name: Webhook ID
-    description: Must match the webhook trigger of your alert automation.
+    name: Webhook ID (advanced)
+    description: Optional. Also POST every alert to this HA webhook, for your own automations. Empty disables it. Most setups don't need it, since alerts also fire a honeypot_alert event.
   notify_cooldown:
     name: Alert cooldown (seconds)
     description: At most one connection alert and one login alert per source IP in this time. 0 alerts on every event. Everything is logged regardless.

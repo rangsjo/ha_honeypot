@@ -10,14 +10,19 @@ from pathlib import Path
 import aiohttp
 from aiohttp import web
 
+import channels
 import config
 import enrich
+import entities as entities_module
 import persona
 import privileges
 import ui
 from enrich import Enricher
-from netns import OwnIP
+from entities import Entities
 from events import EventStore
+from ha_api import HAClient
+from ignore import IgnoreList
+from netns import OwnIP
 from notifier import Notifier
 from services import ftp, http, ssh, telnet, tripwire
 
@@ -66,23 +71,49 @@ async def main() -> None:
         }
         return {"host": await enricher.host(ip, event.get("mac")), "activity": activity}
 
+    pending: set[asyncio.Task] = set()
+
+    def background(coro) -> None:
+        task = asyncio.create_task(coro)
+        pending.add(task)
+        task.add_done_callback(pending.discard)
+
+    ha = HAClient()
+    entities = Entities(ha)
+
+    def on_alert(payload: dict) -> None:
+        alerts.add(payload)
+        entities.alert(payload)
+        background(entities.publish({entities_module.LAST}))
+        if ha.available:  # automation trigger + logbook entry, independent of phone delivery
+            background(ha.fire_event("honeypot_alert", payload))
+
     panel = await panel_path()
     log.info("Alert tap opens %s", panel or "(panel path unknown)")
+    targets = [t for t in cfg["notify_targets"] if t.strip()]
     notifier = Notifier(cfg["ha_url"], cfg["webhook_id"], cfg["notify_cooldown"], describe=describe,
-                        on_alert=alerts.add, extra={"panel_path": panel or "/"})
-    ignore = set(cfg["ignore_ips"])
-    pending: set[asyncio.Task] = set()
+                        on_alert=on_alert, extra={"panel_path": panel or "/"},
+                        channels=[channels.notify_channel(ha, t) for t in targets] if ha.available else [])
+    log.info("Alerts go to: %s", ", ".join(
+        ([f"notify.{channels.notify_service(t)}" for t in targets] if ha.available else [])
+        + ([f"webhook {cfg['webhook_id']}"] if notifier.url else [])) or "nowhere (set notify_targets)")
+    ignore = IgnoreList(DATA_DIR / "ignored.json", cfg["ignore_ips"])
+
+    async def on_notification_action(data: dict) -> None:
+        ip = channels.parse_ignore_action(data.get("action", ""))
+        if ip:
+            ignore.add(ip)
 
     def report(service: str, peer, kind: str, **fields) -> None:
         ip, port = (peer[0], peer[1]) if peer else ("?", 0)
         if ip in ignore:
             return
         event = store.add({"service": service, "kind": kind, "src_ip": ip, "src_port": port, **fields})
+        entities.event(event)
+        background(entities.publish({entities_module.INTRUSION, entities_module.TODAY}))
         log.warning("%s %s from %s:%s %s", service, kind, ip, port,
                     {k: v for k, v in fields.items() if v})
-        task = asyncio.create_task(notifier.handle(event))
-        pending.add(task)
-        task.add_done_callback(pending.discard)
+        background(notifier.handle(event))
 
     status: dict[str, str] = {}
     servers = []
@@ -136,7 +167,7 @@ async def main() -> None:
     for port in cfg["tripwire_ports"]:
         await launch(f"tcp/{port}", [port], lambda p, **kw: tripwire.start(p, report, **kw))
 
-    runner = web.AppRunner(ui.make_app(store, notifier, status, enricher, alerts), access_log=None)
+    runner = web.AppRunner(ui.make_app(store, notifier, status, enricher, alerts, ignore=ignore), access_log=None)
     await runner.setup()
     ui_host = "0.0.0.0"
     if os.getenv("SUPERVISOR_TOKEN"):
@@ -150,6 +181,11 @@ async def main() -> None:
     # Everything that needed root is done; the services now face attackers unprivileged.
     status["privileges"] = privileges.drop(DATA_DIR)
     log.info("UI on %s:%s, alerts to %s (cooldown %ss)", ui_host, cfg["ui_port"], notifier.url, cfg["notify_cooldown"])
+
+    if ha.available:
+        background(entities.run())
+        background(ha.listen("mobile_app_notification_action", on_notification_action,
+                             on_connect=entities.publish))
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

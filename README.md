@@ -21,13 +21,14 @@ Activity: 12 events since 5 min ago on ssh, telnet · users tried: root, pi
 - **A different look on every install.** A random persona (hostname, OS banners, MAC vendor, web page) means scanners can't learn to recognise it.
 - **Alerts that identify the intruder:** HA device name, hostnames (DNS/mDNS/NetBIOS), MAC vendor, open ports, activity summary.
 - **Unprivileged after startup.** Once its network setup is done, the add-on drops root and all its admin rights, so a bug in a fake service doesn't give the attacker your HA machine.
+- **Native HA integration.** Notifications go straight to your phone, with an *Ignore this device* button. Entities (`binary_sensor.honeypot_intrusion`, last intruder, events today) and a `honeypot_alert` event let you build automations.
 - **Rate-limited alerts.** A port scan gives you one notification, not fifty. Tapping it opens the Honeypot panel with the full history.
 
 ## Install
 
 [![Add repository to my Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Frangsjo%2Fha_honeypot)
 
-Or manually: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add `https://github.com/rangsjo/ha_honeypot`. Then install **Honeypot** and follow its **Documentation** tab: one automation to forward alerts to your phone, then start the add-on.
+Or manually: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add `https://github.com/rangsjo/ha_honeypot`. Then install **Honeypot**, add your phone under **Notify targets** in its Configuration tab, and start it. No YAML needed.
 
 This is a Home Assistant **add-on**, so it needs Home Assistant OS or Supervised. HACS can't install add-ons.
 

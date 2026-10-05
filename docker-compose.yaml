@@ -9,7 +9,10 @@ services:
       - ./data:/data                 # events.jsonl + persistent SSH host key
     environment:
       - HA_URL=http://homeassistant.local:8123   # change to your HA IP if needed
-      - WEBHOOK_ID=honeypot_alert
+      - NOTIFY_TARGETS=              # comma-separated, e.g. notify.mobile_app_my_phone (needs HA_API_URL + HA_TOKEN)
+      - HA_API_URL=                  # e.g. http://homeassistant.local:8123
+      - HA_TOKEN=                    # long-lived access token (HA profile → Security)
+      - WEBHOOK_ID=                  # optional
       - NOTIFY_COOLDOWN=600
       - SSH_PORT=22                  # falls back to SSH_FALLBACK_PORT (2222) if taken
       - TELNET_PORT=23

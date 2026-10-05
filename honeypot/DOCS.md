@@ -18,38 +18,11 @@ Every login is refused. On first start the add-on picks a random but consistent 
 
 ## Setup
 
-### 1. Create the notification automation
+### 1. Choose where alerts go
 
-Settings → Automations → Create → ⋮ → Edit in YAML. Replace `notify.mobile_app_your_phone` with your phone's action (find it under Developer tools → Actions, search `mobile_app`).
+In the add-on's **Configuration** tab, add your phone to **Notify targets**, e.g. `notify.mobile_app_my_phone`. To find the name, go to Developer tools → Actions and search `mobile_app`. Add several targets to alert several phones. No automation is needed.
 
-```yaml
-alias: Honeypot alert
-triggers:
-  - trigger: webhook
-    webhook_id: honeypot_alert
-    allowed_methods:
-      - POST
-    local_only: true
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "{{ trigger.json.title }}"
-      message: "{{ trigger.json.message }}"
-      data:
-        url: "{{ trigger.json.panel_path }}"           # iOS: tapping opens the Honeypot panel
-        clickAction: "{{ trigger.json.panel_path }}"   # Android
-        push:
-          interruption-level: time-sensitive   # iOS: break through Focus
-        priority: high                         # Android
-        ttl: 0
-  # Optional: keep a copy in HA's notification bell until dismissed.
-  - action: persistent_notification.create
-    data:
-      title: "{{ trigger.json.title }}"
-      message: "{{ trigger.json.message }}"
-```
-
-On iPhone, turn on **Settings → Notifications → Home Assistant → Time Sensitive Notifications**.
+Alerts open the Honeypot panel when tapped, break through Focus on iPhone (turn on **Settings → Notifications → Home Assistant → Time Sensitive Notifications**), and have an **Ignore this device** button for false alarms, such as your own network scanner.
 
 ### 2. Start and test
 
@@ -60,6 +33,32 @@ ssh root@<honeypot-ip>
 curl http://<honeypot-ip>/
 nc <honeypot-ip> 23
 ```
+
+## Entities and automations
+
+The add-on keeps these entities up to date (no MQTT needed):
+
+| Entity | |
+|---|---|
+| `binary_sensor.honeypot_intrusion` | `on` for 5 minutes after any activity (device class *safety*) |
+| `sensor.honeypot_last_intruder` | Best name of the last alerting device. Attributes: IP, MAC, vendor, service, username, password, time and the alert text |
+| `sensor.honeypot_events_today` | Connections and login attempts today |
+
+Every alert also fires a **`honeypot_alert` event**, which shows up in the logbook and works as an automation trigger. For example, to flash the hallway lights:
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: honeypot_alert
+actions:
+  - action: light.turn_on
+    target: { entity_id: light.hallway }
+    data: { flash: long }
+```
+
+The event data has `title`, `message`, `service`, `kind` (`connect`/`login`), `src_ip`, `mac`, `username`, `password`, `host` and `activity`.
+
+> **Upgrading from a webhook automation?** Set **Notify targets**, then delete your old *Honeypot alert* automation and clear `webhook_id`, or you'll get every alert twice.
 
 ## What an alert looks like
 
@@ -105,8 +104,9 @@ Your router may list the honeypot as a new device (often named after the MAC ven
 
 | Option | Default | |
 |---|---|---|
-| `ha_url` | `http://127.0.0.1:8123` | Where to send the webhook. The add-on uses host networking, so localhost reaches HA. |
-| `webhook_id` | `honeypot_alert` | Must match the automation's trigger. |
+| `notify_targets` | `[]` | Notify actions that receive alerts, e.g. `notify.mobile_app_my_phone`. |
+| `webhook_id` | | Optional: also POST alerts to this HA webhook. |
+| `ha_url` | `http://127.0.0.1:8123` | Only used for the webhook. |
 | `notify_cooldown` | `600` | Seconds between alerts per source IP and alert type. `0` = alert on every event. |
 | `ignore_ips` | `[]` | Never log or alert for these IPs (e.g. your network scanner). |
 | `ssh_port` / `ssh_fallback_port` | `22` / `2222` | SSH uses the fallback port if the first one is taken. |
@@ -125,6 +125,7 @@ If a port is already in use, that service shows as failed in the panel and the o
 Everything lives in the add-on's `/data` and is included in HA backups:
 - `events.jsonl`: every connection and login attempt
 - `alerts.jsonl`: every alert with full details
+- `ignored.json`: devices ignored from a notification or the panel
 - `hosts.json`: device details per source IP
 - `persona.json`: this install's fake identity
 - `ssh_host_ed25519_key`: the fake SSH server's host key

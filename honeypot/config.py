@@ -6,7 +6,8 @@ from pathlib import Path
 
 DEFAULTS = {
     "ha_url": "http://127.0.0.1:8123",
-    "webhook_id": "honeypot_alert",
+    "notify_targets": [],
+    "webhook_id": "",
     "notify_cooldown": 600,
     "ignore_ips": [],
     "ssh_port": 22,

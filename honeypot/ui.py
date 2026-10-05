@@ -7,6 +7,7 @@ from aiohttp import web
 
 from enrich import Enricher
 from events import EventStore
+from ignore import IgnoreList
 from notifier import Notifier
 
 HTML_PATH = Path(__file__).parent / "templates" / "index.html"
@@ -16,7 +17,8 @@ INGRESS_IPS = {"172.30.32.2", "127.0.0.1", "::1"}
 
 
 def make_app(store: EventStore, notifier: Notifier, status: dict,
-             enricher: Enricher | None = None, alerts: EventStore | None = None, restrict: bool | None = None) -> web.Application:
+             enricher: Enricher | None = None, alerts: EventStore | None = None, restrict: bool | None = None,
+             ignore: IgnoreList | None = None) -> web.Application:
     if restrict is None:
         restrict = "SUPERVISOR_TOKEN" in os.environ
 
@@ -35,6 +37,20 @@ def make_app(store: EventStore, notifier: Notifier, status: dict,
 
     async def api_status(request: web.Request) -> web.Response:
         return web.json_response({"services": status, "webhook": notifier.url})
+
+    async def api_ignored(request: web.Request) -> web.Response:
+        if ignore is None:
+            return web.json_response({"options": [], "ignored": []})
+        if request.method == "POST":
+            body = await request.json()
+            try:
+                if body.get("ignore", True):
+                    ignore.add(body["ip"])
+                else:
+                    ignore.remove(body["ip"])
+            except (KeyError, ValueError):
+                return web.json_response({"error": "invalid ip"}, status=400)
+        return web.json_response(ignore.as_dict())
 
     async def api_alerts(request: web.Request) -> web.Response:
         limit = min(int(request.query.get("limit", 50)), 300)
@@ -57,4 +73,6 @@ def make_app(store: EventStore, notifier: Notifier, status: dict,
     app.router.add_get("/api/hosts", api_hosts)
     app.router.add_get("/api/alerts", api_alerts)
     app.router.add_post("/api/test", api_test)
+    app.router.add_get("/api/ignored", api_ignored)
+    app.router.add_post("/api/ignored", api_ignored)
     return app
