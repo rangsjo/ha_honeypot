@@ -25,6 +25,10 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 IFACE = "honeypot0"
+# Both receive failures below have the same usual cause.
+RECEIVE_HINT = ("Traffic for the honeypot's own MAC doesn't arrive. In a VM, set the network adapter to "
+                "bridged and allow other MACs (VirtualBox: Promiscuous Mode 'Allow All'; Hyper-V: MAC "
+                "address spoofing). On Wi-Fi, own IP can't work.")
 DHCP_SCRIPT = Path(__file__).parent / "udhcpc.script"
 
 
@@ -39,6 +43,11 @@ async def _run(*args: str, check: bool = True) -> str:
 
 def parse_default_iface(route_output: str) -> str | None:
     m = re.search(r"^default .*?\bdev (\S+)", route_output, re.M)
+    return m.group(1) if m else None
+
+
+def parse_gateway(route_output: str) -> str | None:
+    m = re.search(r"^default via (\d+\.\d+\.\d+\.\d+)", route_output, re.M)
     return m.group(1) if m else None
 
 
@@ -112,11 +121,38 @@ class OwnIP:
         while loop.time() < deadline:
             self.ip = parse_ipv4(await _run(*self._ns("ip", "-4", "-o", "addr", "show", "dev", IFACE)))
             if self.ip:
+                await self._check_receive()
                 log.info("Own IP %s on %s via %s (MAC %s, hostname %s)",
                          self.ip, IFACE, parent, self.mac, self.hostname)
                 return self.ip
             await asyncio.sleep(0.5)
-        raise RuntimeError(f"no DHCP lease within {self.dhcp_timeout:.0f}s")
+        raise RuntimeError(f"DHCP request sent from {self.mac}, but no reply arrived within "
+                           f"{self.dhcp_timeout:.0f}s. {RECEIVE_HINT}")
+
+    async def _check_receive(self) -> None:
+        """Make sure unicast frames to our MAC get through (a static address wouldn't notice otherwise).
+
+        Sending anything to the gateway triggers an ARP request; the gateway's
+        reply is addressed to the honeypot's MAC, which is exactly what a VM
+        without promiscuous mode drops.
+        """
+        gateway = parse_gateway(await _run(*self._ns("ip", "-4", "route", "show", "default")))
+        if not gateway:
+            return
+        s = self.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.sendto(b"", (gateway, 9))
+        except OSError:
+            pass
+        finally:
+            s.close()
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 3
+        while loop.time() < deadline:
+            if "lladdr" in await _run(*self._ns("ip", "neigh", "show", gateway, "dev", IFACE)):
+                return
+            await asyncio.sleep(0.3)
+        raise RuntimeError(f"got {self.ip}, but the gateway {gateway} can't be reached from it. {RECEIVE_HINT}")
 
     @property
     def arp_path(self) -> Path:

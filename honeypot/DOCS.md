@@ -99,7 +99,7 @@ Requirements:
 - **In a VM**, the virtual network adapter must be *bridged* and allow other MAC addresses: VirtualBox: *Promiscuous Mode: Allow All*; Hyper-V: *MAC address spoofing*; Proxmox/KVM bridges work by default.
 - HA itself can't reach the honeypot's IP (a macvlan limitation), so test from another device.
 
-If own IP setup fails, the add-on logs why and **falls back to HA's IP**. In that mode SSH moves to port 2222 when 22 is taken by the SSH add-on. The panel shows which mode is active.
+Your router may list the honeypot as a new device (often named after the MAC vendor, e.g. QNAP) even when own IP fails. That happens when the DHCP request goes out but the reply can't get back in, the typical VM symptom. If own IP setup fails, the add-on logs why and **falls back to HA's IP**. In that mode SSH moves to port 2222 when 22 is taken by the SSH add-on. The panel shows which mode is active.
 
 ## Options
 
@@ -128,6 +128,10 @@ Everything lives in the add-on's `/data` and is included in HA backups:
 - `hosts.json`: device details per source IP
 - `persona.json`: this install's fake identity
 - `ssh_host_ed25519_key`: the fake SSH server's host key
+
+## Support
+
+Bugs and ideas: [GitHub issues](https://github.com/rangsjo/ha_honeypot/issues). If you find the add-on useful, you can [buy me a coffee](https://buymeacoffee.com/jojononasos). ☕
 
 ## Security notes
 

@@ -24,3 +24,8 @@ def test_persona_mac_is_a_real_vendor_prefix():
         mac = persona.generate(random.Random(seed))["mac"]
         assert mac[:8] in {o for ouis in persona.OUIS.values() for o in ouis}
         assert not int(mac[:2], 16) & 0x02  # not "randomized"/locally administered
+
+
+def test_parse_gateway():
+    assert netns.parse_gateway("default via 192.168.1.1 dev honeypot0\n") == "192.168.1.1"
+    assert netns.parse_gateway("192.168.1.0/24 dev honeypot0 proto kernel\n") is None

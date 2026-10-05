@@ -60,6 +60,12 @@ honeypot/                add-on (Docker build context)
 tests/                   unit tests and end-to-end tests that drive each fake service as a client
 ```
 
+## Support
+
+If the honeypot caught something on your network, or you just like it, you can [buy me a coffee](https://buymeacoffee.com/jojononasos). ☕
+
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/jojononasos)
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- **Clearer own IP errors:** when DHCP replies or traffic for the honeypot's MAC don't arrive, the log and panel say so and point to the VM network setting.
+- **Receive check:** own IP now confirms it can receive traffic (via the gateway) before using the address. A static address that can't be reached falls back to HA's IP instead of failing silently.
+
 ## 1.0.0
 
 - **Own IP is now the default.** The honeypot appears as a separate LAN device with its own MAC and DHCP lease. If setup fails, it falls back to HA's IP.
