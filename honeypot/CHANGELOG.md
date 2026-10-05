@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.3
+
+- **Own IP in VMs:** if traffic for the honeypot's MAC doesn't arrive, the add-on enables promiscuous mode on HA's network interface and checks again. Some virtual network cards ignore the extra MAC otherwise.
+
 ## 1.1.2
 
 - **Stricter own IP receive check:** it now requires a confirmed unicast reply from the gateway. A gateway's broadcast ARP request could make the check pass while the honeypot was unreachable.

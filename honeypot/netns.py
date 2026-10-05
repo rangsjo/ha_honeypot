@@ -131,7 +131,16 @@ class OwnIP:
         while loop.time() < deadline:
             self.ip = parse_ipv4(await _run(*self._ns("ip", "-4", "-o", "addr", "show", "dev", IFACE)))
             if self.ip:
-                await self._check_receive()
+                try:
+                    await self._check_receive()
+                except RuntimeError:
+                    # Some virtual NICs (e.g. VirtualBox's) ignore the extra MAC that
+                    # macvlan asks them to accept; promiscuous mode on the parent
+                    # makes them pass it up. Only tried when it's actually needed.
+                    log.warning("Own IP: traffic for %s doesn't arrive; enabling promiscuous mode on %s",
+                                self.mac, parent)
+                    await _run("ip", "link", "set", parent, "promisc", "on")
+                    await self._check_receive()
                 log.info("Own IP %s on %s via %s (MAC %s, hostname %s)",
                          self.ip, IFACE, parent, self.mac, self.hostname)
                 return self.ip
