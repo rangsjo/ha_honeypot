@@ -25,9 +25,10 @@ def arp_lookup(ip: str, arp_path: Path = Path("/proc/net/arp")) -> str | None:
 class EventStore:
     def __init__(self, path: Path | None, maxlen: int = 1000, max_bytes: int = 5_000_000,
                  arp_path: Path = Path("/proc/net/arp")):
+        # Checked in order; with own_ip the honeypot namespace's table goes first.
         self._path = path
         self._max_bytes = max_bytes
-        self._arp_path = arp_path
+        self.arp_paths = [arp_path]
         self._events: deque[dict] = deque(maxlen=maxlen)
         self._load()
 
@@ -43,7 +44,8 @@ class EventStore:
     def add(self, event: dict) -> dict:
         event = {"ts": time.time(), **event}
         if "mac" not in event:
-            event["mac"] = arp_lookup(event.get("src_ip", ""), self._arp_path)
+            ip = event.get("src_ip", "")
+            event["mac"] = next(filter(None, (arp_lookup(ip, p) for p in self.arp_paths)), None)
         self._events.append(event)
         if self._path:
             try:

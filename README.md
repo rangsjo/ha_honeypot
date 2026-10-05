@@ -1,20 +1,8 @@
-# Honeypot
+<img src="honeypot/logo.png" alt="Honeypot" width="250">
 
-A Home Assistant add-on that runs fake network services on your LAN. Nothing legitimate ever talks to them, so **any** connection or login attempt means a device on your network is scanning or probing, and you get a push notification on your phone.
+A Home Assistant add-on that puts a fake **NAS** on your network and sends you a push notification the moment anything touches it.
 
-**Fake services:**
-
-| Service | Default port | What it captures |
-|---|---|---|
-| SSH (real handshake) | 2222 | username + password, or public-key fingerprint |
-| Telnet login prompt | 23 | username + password |
-| FTP | 21 | `USER` / `PASS` |
-| HTTP (web admin login page) | 80 | requested path, User-Agent, form and Basic-auth credentials |
-| TCP tripwires (RDP, VNC, MySQL) | 3389, 5900, 3306 | the connection and its first bytes |
-
-Every login is refused.
-
-**Each install looks different.** On first start the add-on picks a random but consistent persona (hostname, SSH/Telnet/FTP banners matching one OS, web page title and `Server` header) and keeps it in `/data/persona.json`. This way scanners can't fingerprint "this add-on" once and skip it on every network. You can pin any field with the options below. Each alert tries to identify the device behind the IP:
+Nothing legitimate ever connects to the honeypot. So any connection or login attempt means a device on your LAN is scanning or probing: a compromised IoT gadget, malware on a laptop, or someone on your Wi-Fi.
 
 ```
 Honeypot: login attempt on ssh from Garage Pi
@@ -26,126 +14,25 @@ Its open ports: 22 SSH, 80 HTTP
 Activity: 12 events since 5 min ago on ssh, telnet · users tried: root, pi
 ```
 
-The details come from the MAC vendor database, reverse DNS (your router's DHCP names), mDNS/Bonjour, NetBIOS, HA entities that list the IP or MAC (router integrations, device trackers), and a quick check of the intruder's own ports. The add-on also warns when the source is outside your LAN.
+## Features
 
-**Alert rate limiting:** a port scan touches every service in a second, and a brute-forcer tries hundreds of passwords. Each source IP gets at most one *connection* alert and one *login* alert per `notify_cooldown` (default 10 min). Later alerts say how many events were held back. Everything is logged regardless, in the sidebar panel and in `/data/events.jsonl`.
+- **Fake SSH, Telnet, FTP and HTTP login services**, plus TCP tripwires on RDP, VNC and MySQL ports. They log every credential tried and accept none.
+- **Its own device on the LAN.** The honeypot gets its own MAC and DHCP lease, so it never looks like Home Assistant. It falls back to HA's IP when that isn't possible.
+- **A different look on every install.** A random persona (hostname, OS banners, MAC vendor, web page) means scanners can't learn to recognise it.
+- **Alerts that identify the intruder:** HA device name, hostnames (DNS/mDNS/NetBIOS), MAC vendor, open ports, activity summary.
+- **Rate-limited alerts.** A port scan gives you one notification, not fifty. Tapping it opens the Honeypot panel with the full history.
 
----
+## Install
 
-## Option A: Home Assistant add-on (recommended)
+[![Add repository to my Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Frangsjo%2Fha_honeypot)
 
-### 1. Install
+Or manually: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add `https://github.com/rangsjo/ha_honeypot`. Then install **Honeypot** and follow its **Documentation** tab: one automation to forward alerts to your phone, then start the add-on.
 
-**From the repository (private repo):** create a fine-grained GitHub token scoped to this repo only, with *Contents: Read-only*. Then in HA: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add `https://<TOKEN>@github.com/rangsjo/ha_honeypot`, and install **Honeypot**.
+This is a Home Assistant **add-on**, so it needs Home Assistant OS or Supervised. HACS can't install add-ons.
 
-**Or as a local add-on:** run `./sync-to-ha.sh` (needs the SSH add-on), then **⋮ → Check for updates** in the Add-on Store and install it from *Local add-ons*.
+## Documentation
 
-Bump `version` in `honeypot/config.json` on every release you want HA to pick up.
-
-### 2. Configure
-
-```yaml
-ha_url: http://127.0.0.1:8123     # the add-on uses host networking, so localhost reaches HA Core
-webhook_id: honeypot_alert
-notify_cooldown: 600
-ignore_ips: []                    # e.g. your own network-monitoring box
-ssh_port: 2222
-telnet_port: 23
-ftp_port: 21
-http_port: 80
-tripwire_ports: [3389, 5900, 3306]
-probe_back: true                  # check a few of the intruder's own ports to guess the device type
-# Optional persona overrides (leave out to keep the random per-install persona):
-# hostname: diskstation
-# ssh_banner: "OpenSSH_9.2p1 Debian-2+deb12u3"
-# telnet_banner: "Debian GNU/Linux 12"
-# ftp_banner: "220 ProFTPD Server (Debian)"
-# http_title: "NAS Login"
-# http_server: nginx
-```
-
-Set a port to `0` to disable that service. If a port is already taken (for example 22 by the SSH add-on, or 445 by Samba), that service logs an error and the rest keep running. The panel shows each service's status.
-
-> **Tip:** attackers try port 22 first. If you move the *Terminal & SSH* add-on to a different port, set `ssh_port: 22` here for a much better trap.
-
-### Own IP (optional, recommended if HA is on Ethernet)
-
-By default the fake services share HA's IP, so a careful attacker can see they're on the Home Assistant box (it announces itself on the network) and skip it. With `own_ip: true` the honeypot becomes a **separate device on your LAN**:
-
-- It gets its own MAC address, with a vendor prefix that fits the persona (Synology/QNAP, Intel or Raspberry Pi).
-- It gets its own IP from your router over DHCP, under the persona's hostname, so your router lists it as e.g. `diskstation`.
-- The fake services listen only on that IP, and the device lookups (open ports and names of the intruder) are sent from it, so nothing points back to HA.
-- Because the honeypot is its own device, port 22 is free. Set `ssh_port: 22` for a much better SSH trap.
-
-```yaml
-own_ip: true
-# own_ip_interface: enp2s0           # default: the interface of HA's default route
-# own_ip_address: 192.168.1.250/24   # static address instead of DHCP
-# own_ip_gateway: 192.168.1.1        # only with own_ip_address
-```
-
-How it works: a macvlan interface on HA's network port, inside a private network namespace. HA's own networking, routing and ARP are not touched, and the interface disappears when the add-on stops (the DHCP lease is released).
-
-Requirements and trade-offs:
-- **HA must be on Ethernet.** Wi-Fi access points generally refuse extra MAC addresses from one client.
-- The add-on asks for the `NET_ADMIN` and `SYS_ADMIN` privileges to create the interface and namespace, so HA shows it with a lower security rating.
-- HA itself can't reach the honeypot's IP (a macvlan limitation). Test from another device.
-- If setup fails, the add-on logs why and falls back to HA's IP. The panel shows the `own_ip` status.
-
-### 3. Create the notification automation
-
-```yaml
-alias: Honeypot alert
-triggers:
-  - trigger: webhook
-    webhook_id: honeypot_alert
-    allowed_methods:
-      - POST
-    local_only: true
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "{{ trigger.json.title }}"
-      message: "{{ trigger.json.message }}"
-      data:
-        url: "{{ trigger.json.panel_path }}"           # iOS: tapping opens the Honeypot panel
-        clickAction: "{{ trigger.json.panel_path }}"   # Android
-        push:
-          interruption-level: time-sensitive   # iOS: break through Focus
-        priority: high                         # Android
-        ttl: 0
-  # Keep a copy in HA's notification bell until you dismiss it there.
-  - action: persistent_notification.create
-    data:
-      title: "{{ trigger.json.title }}"
-      message: "{{ trigger.json.message }}"
-```
-
-Every alert is also saved by the add-on itself, so nothing is lost if you swipe a notification away. The **Alerts** section of the panel shows each alert's full text and device details, and it keeps alerts that could not be delivered (for example while HA was restarting). Files in the add-on's `/data`: `alerts.jsonl`, `events.jsonl`, `hosts.json`.
-
-The payload also contains the raw fields if you want your own formatting or a dashboard sensor: `service`, `kind` (`connect`/`login`), `src_ip`, `src_port`, `mac`, `username`, `password`, `detail`, `suppressed`, `ts`, plus `host` (vendor, names, open ports) and `activity` (event count, services, usernames).
-
-### 4. Start and test
-
-Start the add-on, open the **Honeypot** sidebar panel and press **Send test notification**. Then try it from a laptop:
-
-```bash
-ssh -p 2222 root@homeassistant.local
-telnet homeassistant.local
-curl http://homeassistant.local/
-```
-
----
-
-## Option B: Standalone Docker Compose
-
-```bash
-docker compose up -d --build     # edit HA_URL etc. in docker-compose.yaml first
-```
-
-The UI is at http://localhost:8199.
-
----
+Setup, options, the own-IP requirements and security notes are in [honeypot/DOCS.md](honeypot/DOCS.md), which is the add-on's Documentation tab in HA.
 
 ## Development
 
@@ -154,33 +41,24 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-test.txt
 .venv/bin/pytest
 ```
 
-## Architecture
+Run it outside HA with `docker compose up -d --build` (see `docker-compose.yaml`; panel at http://localhost:8199). To test changes on your own HA as a local add-on, run `./sync-to-ha.sh` (needs the SSH add-on). Bump `version` in `honeypot/config.json` for every release; that's how HA detects updates.
 
 ```
 repository.yaml          HA add-on repository manifest
-sync-to-ha.sh            push the add-on to HA as a local add-on
-docker-compose.yaml      standalone deployment
-honeypot/                add-on source (Docker build context)
-  config.json            add-on manifest (host_network, ingress, options)
-  run.sh / main.py       startup: launch services, UI, wire events to notifier
+honeypot/                add-on (Docker build context)
+  config.json            manifest: host_network, ingress, privileges, options
+  DOCS.md, README.md, CHANGELOG.md, translations/   what HA shows in the store
+  main.py                startup: persona, own IP, services, panel, alerts
   config.py              options.json + env-var overrides
-  events.py              event/alert log (memory + /data/events.jsonl) and ARP→MAC lookup
-  notifier.py            HA webhook with per-IP cooldown, alert formatting
-  enrich.py              device identification (vendor, DNS/mDNS/NetBIOS, HA entities, ports)
   persona.py             random per-install banners/hostname/MAC, saved in /data
-  netns.py, udhcpc.script  own_ip: macvlan + private network namespace + DHCP
-  ui.py, templates/      ingress panel (ingress-only when running under Supervisor)
+  netns.py, udhcpc.script  own IP: macvlan + private network namespace + DHCP
   services/              ssh, telnet, ftp, http, tripwire
-tests/                   end-to-end tests that drive each fake service as a client
+  enrich.py              device identification (vendor, DNS/mDNS/NetBIOS, HA entities, ports)
+  notifier.py            HA webhook, per-IP cooldown, alert text
+  events.py              event/alert log in /data, ARP→MAC lookup
+  ui.py, templates/      ingress panel
+tests/                   unit tests and end-to-end tests that drive each fake service as a client
 ```
-
-## Security notes
-
-- The add-on needs `host_network` so the services sit on HA's LAN IP and the ARP table is readable. It does **not** request any other privileges.
-- No service ever accepts a login or runs a command. They only read a few short lines with timeouts and length limits.
-- The UI port (8199) is open on the host, but it refuses every client except the Supervisor's ingress proxy.
-- **Do not port-forward these ports from your router.** This is a LAN tripwire. On the internet it would just alert you constantly.
-- Captured passwords are what intruders *tried*. If one of them is a real password of yours, a device on your LAN knows it. Change it.
 
 ## License
 

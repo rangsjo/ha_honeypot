@@ -75,6 +75,8 @@ class OwnIP:
         self._holder = await asyncio.create_subprocess_exec("unshare", "--net", "--", "sleep", "infinity")
         own_ns = os.readlink("/proc/self/ns/net")
         for _ in range(50):
+            if self._holder.returncode is not None:
+                break  # unshare refused (no SYS_ADMIN)
             try:
                 if os.readlink(f"/proc/{self._holder.pid}/ns/net") != own_ns:
                     break
@@ -115,6 +117,11 @@ class OwnIP:
                 return self.ip
             await asyncio.sleep(0.5)
         raise RuntimeError(f"no DHCP lease within {self.dhcp_timeout:.0f}s")
+
+    @property
+    def arp_path(self) -> Path:
+        """ARP table of the honeypot's namespace: where intruders' MACs show up."""
+        return Path(f"/proc/{self._holder.pid}/net/arp")
 
     def socket(self, family: int = socket.AF_INET, type: int = socket.SOCK_STREAM) -> socket.socket:
         """An unbound socket inside the honeypot's namespace.

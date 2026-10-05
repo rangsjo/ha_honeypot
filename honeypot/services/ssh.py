@@ -21,8 +21,7 @@ class _Server(asyncssh.SSHServer):
 
     def connection_made(self, conn: asyncssh.SSHServerConnection) -> None:
         self._peer = conn.get_extra_info("peername")
-        self._report("ssh", self._peer, "connect",
-                     detail=f"client {conn.get_extra_info('client_version', '')}".strip())
+        self._report("ssh", self._peer, "connect")
 
     def begin_auth(self, username: str) -> bool:
         return True

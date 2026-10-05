@@ -24,6 +24,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("honeypot")
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
+# With host_network, the Supervisor's ingress proxy reaches the add-on through
+# the hassio bridge gateway. Binding the UI there keeps it off the LAN entirely.
+HASSIO_GATEWAY = "172.30.32.1"
 
 
 async def panel_path() -> str | None:
@@ -91,40 +94,59 @@ async def main() -> None:
             ip = await own.start()
             status["own_ip"] = f"{ip} · MAC {who['mac']} · {who['hostname']}"
             enrich.socket_factory = own.socket
+            store.arp_paths.insert(0, own.arp_path)
         except Exception as e:
             log.error("own_ip failed, falling back to HA's IP: %s", e)
             status["own_ip"] = f"failed, using HA's IP: {e}"
             await own.stop()
             own = None
 
-    async def launch(name: str, port: int, starter) -> None:
-        if not port:
+    async def launch(name: str, ports: list[int], starter) -> None:
+        """Start a service on the first port that binds; later ports are fallbacks."""
+        ports = [p for p in ports if p]
+        if not ports:
             status[name] = "disabled"
             return
-        try:
-            servers.append(await starter(**({"sock": own.listen_socket(port)} if own else {})))
-            status[name] = f"listening on {port}"
+        errors = []
+        for port in ports:
+            try:
+                servers.append(await starter(port, **({"sock": own.listen_socket(port)} if own else {})))
+            except OSError as e:
+                errors.append(f"{port}: {e.strerror or e}")
+                log.warning("%s honeypot could not bind port %s: %s", name, port, e)
+                continue
+            status[name] = f"listening on {port}" + (f" (fallback; {', '.join(errors)})" if errors else "")
             log.info("%s honeypot listening on port %s", name, port)
-        except OSError as e:
-            status[name] = f"failed on {port}: {e.strerror or e}"
-            log.error("%s honeypot could not bind port %s: %s", name, port, e)
+            return
+        status[name] = "failed: " + ", ".join(errors)
+        log.error("%s honeypot disabled, no port available", name)
 
-    await launch("ssh", cfg["ssh_port"],
-                 lambda **kw: ssh.start(cfg["ssh_port"], report, DATA_DIR / "ssh_host_ed25519_key",
-                                        version=who["ssh_banner"], **kw))
-    await launch("telnet", cfg["telnet_port"],
-                 lambda **kw: telnet.start(cfg["telnet_port"], report, who["hostname"], who["telnet_banner"], **kw))
-    await launch("ftp", cfg["ftp_port"],
-                 lambda **kw: ftp.start(cfg["ftp_port"], report, who["ftp_banner"], **kw))
-    await launch("http", cfg["http_port"],
-                 lambda **kw: http.start(cfg["http_port"], report, who["http_title"], who["http_server"], **kw))
+    # Port 22 is the real bait, but on HA's own IP it is usually taken by the
+    # SSH add-on, so fall back to 2222 there.
+    await launch("ssh", [cfg["ssh_port"], cfg["ssh_fallback_port"]],
+                 lambda port, **kw: ssh.start(port, report, DATA_DIR / "ssh_host_ed25519_key",
+                                              version=who["ssh_banner"], **kw))
+    await launch("telnet", [cfg["telnet_port"]],
+                 lambda port, **kw: telnet.start(port, report, who["hostname"], who["telnet_banner"], **kw))
+    await launch("ftp", [cfg["ftp_port"]],
+                 lambda port, **kw: ftp.start(port, report, who["ftp_banner"], **kw))
+    await launch("http", [cfg["http_port"]],
+                 lambda port, **kw: http.start(port, report, who["http_title"], who["http_server"], **kw))
     for port in cfg["tripwire_ports"]:
-        await launch(f"tcp/{port}", port, lambda p=port, **kw: tripwire.start(p, report, **kw))
+        await launch(f"tcp/{port}", [port], lambda p, **kw: tripwire.start(p, report, **kw))
 
     runner = web.AppRunner(ui.make_app(store, notifier, status, enricher, alerts), access_log=None)
     await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", cfg["ui_port"]).start()
-    log.info("UI on port %s, alerts to %s (cooldown %ss)", cfg["ui_port"], notifier.url, cfg["notify_cooldown"])
+    ui_host = "0.0.0.0"
+    if os.getenv("SUPERVISOR_TOKEN"):
+        try:
+            await web.TCPSite(runner, HASSIO_GATEWAY, cfg["ui_port"]).start()
+            ui_host = HASSIO_GATEWAY
+        except OSError as e:
+            log.warning("Could not bind UI to %s (%s); binding all interfaces, ingress-only", HASSIO_GATEWAY, e)
+    if ui_host == "0.0.0.0":
+        await web.TCPSite(runner, ui_host, cfg["ui_port"]).start()
+    log.info("UI on %s:%s, alerts to %s (cooldown %ss)", ui_host, cfg["ui_port"], notifier.url, cfg["notify_cooldown"])
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

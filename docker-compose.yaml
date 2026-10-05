@@ -11,11 +11,12 @@ services:
       - HA_URL=http://homeassistant.local:8123   # change to your HA IP if needed
       - WEBHOOK_ID=honeypot_alert
       - NOTIFY_COOLDOWN=600
-      - SSH_PORT=2222
+      - SSH_PORT=22                  # falls back to SSH_FALLBACK_PORT (2222) if taken
       - TELNET_PORT=23
       - FTP_PORT=21
       - HTTP_PORT=80
       - TRIPWIRE_PORTS=3389,5900,3306
       - IGNORE_IPS=                  # comma-separated, e.g. your network scanner
       - UI_PORT=8199
+      - OWN_IP=false                 # own IP needs cap_add NET_ADMIN + SYS_ADMIN, see DOCS.md
     restart: unless-stopped

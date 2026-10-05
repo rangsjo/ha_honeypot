@@ -9,7 +9,8 @@ DEFAULTS = {
     "webhook_id": "honeypot_alert",
     "notify_cooldown": 600,
     "ignore_ips": [],
-    "ssh_port": 2222,
+    "ssh_port": 22,
+    "ssh_fallback_port": 2222,
     "telnet_port": 23,
     "ftp_port": 21,
     "http_port": 80,
@@ -23,7 +24,7 @@ DEFAULTS = {
     "http_title": "",
     "http_server": "",
     # Own IP: run the services as a separate LAN device (see netns.py).
-    "own_ip": False,
+    "own_ip": True,
     "own_ip_interface": "",
     "own_ip_address": "",
     "own_ip_gateway": "",

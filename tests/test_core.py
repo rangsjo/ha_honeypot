@@ -132,3 +132,13 @@ def test_container_hostname_env_does_not_leak_into_persona(tmp_path, monkeypatch
     assert config.load(tmp_path / "none.json")["hostname"] == ""
     monkeypatch.setenv("FAKE_HOSTNAME", "nas")
     assert config.load(tmp_path / "none.json")["hostname"] == "nas"
+
+
+def test_event_store_checks_arp_tables_in_order(tmp_path):
+    host, ns = tmp_path / "host_arp", tmp_path / "ns_arp"
+    host.write_text(ARP)
+    ns.write_text(ARP.splitlines()[0] + "\n192.168.1.77 0x1 0x2 11:22:33:44:55:66 * honeypot0\n")
+    store = EventStore(None, arp_path=host)
+    store.arp_paths.insert(0, ns)
+    assert store.add({"src_ip": "192.168.1.77"})["mac"] == "11:22:33:44:55:66"
+    assert store.add({"src_ip": "192.168.1.50"})["mac"] == "aa:bb:cc:dd:ee:ff"

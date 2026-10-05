@@ -1,0 +1,64 @@
+configuration:
+  ha_url:
+    name: Home Assistant URL
+    description: Where alerts are sent. The add-on uses host networking, so http://127.0.0.1:8123 reaches Home Assistant.
+  webhook_id:
+    name: Webhook ID
+    description: Must match the webhook trigger of your alert automation.
+  notify_cooldown:
+    name: Alert cooldown (seconds)
+    description: At most one connection alert and one login alert per source IP in this time. 0 alerts on every event. Everything is logged regardless.
+  ignore_ips:
+    name: Ignored IPs
+    description: Never log or alert for these addresses, e.g. your own network scanner.
+  ssh_port:
+    name: SSH port
+    description: Fake SSH server. 0 disables it.
+  ssh_fallback_port:
+    name: SSH fallback port
+    description: Used if the SSH port is already taken, e.g. by the SSH add-on when the honeypot shares Home Assistant's IP.
+  telnet_port:
+    name: Telnet port
+    description: Fake Telnet login prompt. 0 disables it.
+  ftp_port:
+    name: FTP port
+    description: Fake FTP server. 0 disables it.
+  http_port:
+    name: HTTP port
+    description: Fake web admin login page. 0 disables it.
+  tripwire_ports:
+    name: Tripwire ports
+    description: Plain TCP listeners that alert on any connection (defaults are RDP, VNC and MySQL).
+  probe_back:
+    name: Check intruder's ports
+    description: Briefly test a few ports on the intruder's device to guess what it is (phone, Windows PC, camera, printer).
+  own_ip:
+    name: Own IP
+    description: Appear as a separate device on the LAN with its own MAC and IP (needs Ethernet; in a VM, a bridged adapter that allows other MACs). Falls back to Home Assistant's IP if it can't be set up.
+  own_ip_interface:
+    name: Own IP network interface
+    description: Interface to attach the honeypot to. Empty uses the interface of Home Assistant's default route.
+  own_ip_address:
+    name: Own IP static address
+    description: Static address in CIDR form, e.g. 192.168.1.250/24. Empty gets an address from your router over DHCP.
+  own_ip_gateway:
+    name: Own IP gateway
+    description: Gateway for the static address. Only used together with a static address.
+  hostname:
+    name: Fake hostname
+    description: Hostname shown in the Telnet prompt and sent to your router's DHCP. Empty keeps the random per-install persona.
+  ssh_banner:
+    name: SSH version banner
+    description: e.g. OpenSSH_9.2p1 Debian-2+deb12u3. Empty keeps the random persona.
+  telnet_banner:
+    name: Telnet banner
+    description: Line shown before the login prompt, e.g. Debian GNU/Linux 12. Empty keeps the random persona.
+  ftp_banner:
+    name: FTP banner
+    description: Greeting line including the 220 code. Empty keeps the random persona.
+  http_title:
+    name: Web page title
+    description: Title of the fake login page. Empty keeps the random persona.
+  http_server:
+    name: Web Server header
+    description: e.g. nginx or lighttpd/1.4.59. Empty keeps the random persona.
