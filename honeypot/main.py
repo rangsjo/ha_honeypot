@@ -10,6 +10,7 @@ import aiohttp
 from aiohttp import web
 
 import config
+import persona
 import ui
 from enrich import Enricher
 from events import EventStore
@@ -41,6 +42,8 @@ async def panel_path() -> str | None:
 
 async def main() -> None:
     cfg = config.load()
+    who = persona.load_or_create(DATA_DIR / "persona.json", cfg)
+    log.info("Persona: %s", who)
     store = EventStore(DATA_DIR / "events.jsonl")
     alerts = EventStore(DATA_DIR / "alerts.jsonl", maxlen=300)
     enricher = Enricher(probe_back=cfg["probe_back"], path=DATA_DIR / "hosts.json")
@@ -90,10 +93,11 @@ async def main() -> None:
             log.error("%s honeypot could not bind port %s: %s", name, port, e)
 
     await launch("ssh", cfg["ssh_port"],
-                 lambda: ssh.start(cfg["ssh_port"], report, DATA_DIR / "ssh_host_ed25519_key"))
-    await launch("telnet", cfg["telnet_port"], lambda: telnet.start(cfg["telnet_port"], report))
-    await launch("ftp", cfg["ftp_port"], lambda: ftp.start(cfg["ftp_port"], report))
-    await launch("http", cfg["http_port"], lambda: http.start(cfg["http_port"], report))
+                 lambda: ssh.start(cfg["ssh_port"], report, DATA_DIR / "ssh_host_ed25519_key",
+                                   version=who["ssh_banner"]))
+    await launch("telnet", cfg["telnet_port"], lambda: telnet.start(cfg["telnet_port"], report, who["hostname"], who["telnet_banner"]))
+    await launch("ftp", cfg["ftp_port"], lambda: ftp.start(cfg["ftp_port"], report, who["ftp_banner"]))
+    await launch("http", cfg["http_port"], lambda: http.start(cfg["http_port"], report, who["http_title"], who["http_server"]))
     for port in cfg["tripwire_ports"]:
         await launch(f"tcp/{port}", port, lambda p=port: tripwire.start(p, report))
 

@@ -6,13 +6,15 @@ A Home Assistant add-on that runs fake network services on your LAN. Nothing leg
 
 | Service | Default port | What it captures |
 |---|---|---|
-| SSH (real handshake, OpenSSH banner) | 2222 | username + password, or public-key fingerprint |
-| Telnet (`nas login:` prompt) | 23 | username + password |
-| FTP (vsFTPd banner) | 21 | `USER` / `PASS` |
-| HTTP ("Router Administration" login page) | 80 | requested path, User-Agent, form and Basic-auth credentials |
+| SSH (real handshake) | 2222 | username + password, or public-key fingerprint |
+| Telnet login prompt | 23 | username + password |
+| FTP | 21 | `USER` / `PASS` |
+| HTTP (web admin login page) | 80 | requested path, User-Agent, form and Basic-auth credentials |
 | TCP tripwires (RDP, VNC, MySQL) | 3389, 5900, 3306 | the connection and its first bytes |
 
-Every login is refused. Each alert tries to identify the device behind the IP:
+Every login is refused.
+
+**Each install looks different.** On first start the add-on picks a random but consistent persona (hostname, SSH/Telnet/FTP banners matching one OS, web page title and `Server` header) and keeps it in `/data/persona.json`. This way scanners can't fingerprint "this add-on" once and skip it on every network. You can pin any field with the options below. Each alert tries to identify the device behind the IP:
 
 ```
 Honeypot: login attempt on ssh from Garage Pi
@@ -53,6 +55,13 @@ ftp_port: 21
 http_port: 80
 tripwire_ports: [3389, 5900, 3306]
 probe_back: true                  # check a few of the intruder's own ports to guess the device type
+# Optional persona overrides (leave out to keep the random per-install persona):
+# hostname: diskstation
+# ssh_banner: "OpenSSH_9.2p1 Debian-2+deb12u3"
+# telnet_banner: "Debian GNU/Linux 12"
+# ftp_banner: "220 ProFTPD Server (Debian)"
+# http_title: "NAS Login"
+# http_server: nginx
 ```
 
 Set a port to `0` to disable that service. If a port is already taken (for example 22 by the SSH add-on, or 445 by Samba), that service logs an error and the rest keep running. The panel shows each service's status.
@@ -134,6 +143,7 @@ honeypot/                add-on source (Docker build context)
   events.py              event/alert log (memory + /data/events.jsonl) and ARP→MAC lookup
   notifier.py            HA webhook with per-IP cooldown, alert formatting
   enrich.py              device identification (vendor, DNS/mDNS/NetBIOS, HA entities, ports)
+  persona.py             random per-install banners/hostname, saved in /data
   ui.py, templates/      ingress panel (ingress-only when running under Supervisor)
   services/              ssh, telnet, ftp, http, tripwire
 tests/                   end-to-end tests that drive each fake service as a client
@@ -146,3 +156,7 @@ tests/                   end-to-end tests that drive each fake service as a clie
 - The UI port (8199) is open on the host, but it refuses every client except the Supervisor's ingress proxy.
 - **Do not port-forward these ports from your router.** This is a LAN tripwire. On the internet it would just alert you constantly.
 - Captured passwords are what intruders *tried*. If one of them is a real password of yours, a device on your LAN knows it. Change it.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

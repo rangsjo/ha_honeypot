@@ -54,9 +54,10 @@ def test_telnet_captures_credentials():
     rec = Recorder()
 
     async def go():
-        server = await telnet.start(0, rec, host="127.0.0.1", delay=0)
+        server = await telnet.start(0, rec, "diskstation", "Debian GNU/Linux 12", host="127.0.0.1", delay=0)
         r, w = await asyncio.open_connection("127.0.0.1", port_of(server))
-        await r.readuntil(b"login: ")
+        greeting = await r.readuntil(b"login: ")
+        assert greeting == b"\r\nDebian GNU/Linux 12\r\ndiskstation login: "
         w.write(b"root\r\n")
         await r.readuntil(b"Password: ")
         w.write(b"hunter2\r\n")
@@ -76,7 +77,7 @@ def test_ftp_captures_credentials():
     rec = Recorder()
 
     async def go():
-        server = await ftp.start(0, rec, host="127.0.0.1", delay=0)
+        server = await ftp.start(0, rec, "220 ProFTPD Server (Debian)", host="127.0.0.1", delay=0)
         r, w = await asyncio.open_connection("127.0.0.1", port_of(server))
         replies = [await r.readline()]
         for cmd in (b"USER anonymous", b"PASS guest@", b"LIST", b"QUIT"):
@@ -86,6 +87,7 @@ def test_ftp_captures_credentials():
         return replies
 
     replies = asyncio.run(go())
+    assert replies[0] == b"220 ProFTPD Server (Debian)\r\n"
     assert [x[:3] for x in replies] == [b"220", b"331", b"530", b"530", b"221"]
     assert rec.logins()[0]["username"] == "anonymous"
     assert rec.logins()[0]["password"] == "guest@"
@@ -112,13 +114,13 @@ def test_http_form_and_basic_auth():
     rec = Recorder()
 
     async def go():
-        runner = await http.start(0, rec, host="127.0.0.1")
+        runner = await http.start(0, rec, title="NAS <Login>", server="nginx", host="127.0.0.1")
         port = runner.addresses[0][1]
         base = f"http://127.0.0.1:{port}"
         async with aiohttp.ClientSession() as s:
             async with s.get(base + "/cgi-bin/luci") as resp:
                 server_header = resp.headers["Server"]
-                assert "Router Administration" in await resp.text()
+                assert "<h1>NAS &lt;Login&gt;</h1>" in await resp.text()
             async with s.post(base + "/login", data={"username": "admin", "password": "1234"}) as resp:
                 assert "Invalid" in await resp.text()
             hdr = "Basic " + base64.b64encode(b"admin:admin").decode()
@@ -127,7 +129,7 @@ def test_http_form_and_basic_auth():
         await runner.cleanup()
         return server_header
 
-    assert asyncio.run(go()) == "lighttpd/1.4.59"
+    assert asyncio.run(go()) == "nginx"
     assert rec.events[0]["kind"] == "connect" and "/cgi-bin/luci" in rec.events[0]["detail"]
     assert [(e["username"], e["password"]) for e in rec.logins()] == [("admin", "1234"), ("admin", "admin")]
 
@@ -137,8 +139,11 @@ def test_ssh_captures_password_and_persists_host_key(tmp_path):
     key_path = tmp_path / "host_key"
 
     async def go():
-        server = await ssh.start(0, rec, key_path, host="127.0.0.1", delay=0)
+        server = await ssh.start(0, rec, key_path, "dropbear_2022.83", host="127.0.0.1", delay=0)
         port = server.sockets[0].getsockname()[1]
+        r, w = await asyncio.open_connection("127.0.0.1", port)
+        assert await r.readline() == b"SSH-2.0-dropbear_2022.83\r\n"
+        w.close()
         with pytest.raises(asyncssh.PermissionDenied):
             await asyncssh.connect("127.0.0.1", port, username="pi", password="raspberry",
                                    known_hosts=None, client_keys=None,

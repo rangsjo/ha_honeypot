@@ -4,18 +4,19 @@ import asyncio
 
 from services.common import LineReader, Report, close
 
-BANNER = b"220 (vsFTPd 3.0.5)\r\n"
+DEFAULT_BANNER = "220 (vsFTPd 3.0.5)"
 MAX_COMMANDS = 30
 
 
 async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                 report: Report, timeout: float = 60.0, delay: float = 1.0) -> None:
+                 report: Report, banner: str = DEFAULT_BANNER, timeout: float = 60.0,
+                 delay: float = 1.0) -> None:
     peer = writer.get_extra_info("peername")
     report("ftp", peer, "connect")
     lines = LineReader(reader, timeout=timeout)
     user = ""
     try:
-        writer.write(BANNER)
+        writer.write(f"{banner}\r\n".encode())
         await writer.drain()
         for _ in range(MAX_COMMANDS):
             line = await lines.readline()
@@ -46,5 +47,6 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
         await close(writer)
 
 
-async def start(port: int, report: Report, host: str = "0.0.0.0", **kw) -> asyncio.Server:
-    return await asyncio.start_server(lambda r, w: handle(r, w, report, **kw), host, port)
+async def start(port: int, report: Report, banner: str = DEFAULT_BANNER, host: str = "0.0.0.0",
+                **kw) -> asyncio.Server:
+    return await asyncio.start_server(lambda r, w: handle(r, w, report, banner, **kw), host, port)

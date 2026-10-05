@@ -15,6 +15,13 @@ DEFAULTS = {
     "http_port": 80,
     "tripwire_ports": [3389, 5900, 3306],
     "probe_back": True,
+    # Persona overrides; empty = use the random per-install persona.
+    "hostname": "",
+    "ssh_banner": "",
+    "telnet_banner": "",
+    "ftp_banner": "",
+    "http_title": "",
+    "http_server": "",
     "ui_port": 8199,
 }
 

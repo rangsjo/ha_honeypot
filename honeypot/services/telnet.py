@@ -4,17 +4,17 @@ import asyncio
 
 from services.common import LineReader, Report, close
 
-BANNER = b"\r\nUbuntu 22.04.4 LTS\r\n"
 MAX_ATTEMPTS = 3
 
 
 async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
-                 report: Report, hostname: str, timeout: float = 60.0, delay: float = 1.0) -> None:
+                 report: Report, hostname: str, banner: str = "", timeout: float = 60.0,
+                 delay: float = 1.0) -> None:
     peer = writer.get_extra_info("peername")
     report("telnet", peer, "connect")
     lines = LineReader(reader, timeout=timeout, telnet=True)
     try:
-        writer.write(BANNER)
+        writer.write(f"\r\n{banner}\r\n".encode() if banner else b"\r\n")
         for _ in range(MAX_ATTEMPTS):
             writer.write(f"{hostname} login: ".encode())
             await writer.drain()
@@ -35,5 +35,6 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
         await close(writer)
 
 
-async def start(port: int, report: Report, hostname: str = "nas", host: str = "0.0.0.0", **kw) -> asyncio.Server:
-    return await asyncio.start_server(lambda r, w: handle(r, w, report, hostname, **kw), host, port)
+async def start(port: int, report: Report, hostname: str = "nas", banner: str = "",
+                host: str = "0.0.0.0", **kw) -> asyncio.Server:
+    return await asyncio.start_server(lambda r, w: handle(r, w, report, hostname, banner, **kw), host, port)

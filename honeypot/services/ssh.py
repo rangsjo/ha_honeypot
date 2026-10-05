@@ -8,7 +8,7 @@ import asyncssh
 
 from services.common import Report
 
-SERVER_VERSION = "OpenSSH_8.9p1 Ubuntu-3ubuntu0.10"
+DEFAULT_VERSION = "OpenSSH_8.9p1 Ubuntu-3ubuntu0.10"
 
 logging.getLogger("asyncssh").setLevel(logging.WARNING)
 
@@ -53,11 +53,11 @@ def load_host_key(path: Path) -> asyncssh.SSHKey:
     return key
 
 
-async def start(port: int, report: Report, host_key_path: Path, host: str = "0.0.0.0",
-                delay: float = 1.0) -> asyncssh.SSHAcceptor:
+async def start(port: int, report: Report, host_key_path: Path, version: str = DEFAULT_VERSION,
+                host: str = "0.0.0.0", delay: float = 1.0) -> asyncssh.SSHAcceptor:
     return await asyncssh.create_server(
         lambda: _Server(report, delay), host, port,
         server_host_keys=[load_host_key(host_key_path)],
-        server_version=SERVER_VERSION,
+        server_version=version,
         login_timeout=60,
     )
