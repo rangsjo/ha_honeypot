@@ -71,6 +71,7 @@ class OwnIP:
         self.gateway = gateway
         self.dhcp_timeout = dhcp_timeout
         self.ip: str | None = None
+        self.gateway_ip: str | None = None
         self._holder: subprocess.Popen | None = None
         self._dhcp: subprocess.Popen | None = None
         self._ns_fd: int | None = None
@@ -160,6 +161,7 @@ class OwnIP:
         own broadcast ARP request and proves nothing about unicast.
         """
         gateway = parse_gateway(await _run(*self._ns("ip", "-4", "route", "show", "default")))
+        self.gateway_ip = gateway
         if not gateway:
             return
         s = self.socket(socket.AF_INET, socket.SOCK_DGRAM)

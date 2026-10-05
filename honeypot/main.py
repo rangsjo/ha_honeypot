@@ -23,9 +23,11 @@ from events import EventStore
 from ha_api import HAClient
 from ignore import IgnoreList
 from mdns import Announcer
+import netns
 from netns import OwnIP
 from notifier import Notifier
 from services import ftp, http, mqtt, smb, ssh, telnet, tripwire
+from services.discovery import DiscoveryWatcher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("honeypot")
@@ -178,6 +180,17 @@ async def main() -> None:
     for port in cfg["tripwire_ports"]:
         await launch(f"tcp/{port}", [port], lambda p, **kw: tripwire.start(p, report, **kw))
 
+    watcher = None
+    if own and cfg["detect_discovery"]:
+        watcher = DiscoveryWatcher(report, lambda: own.ip, lambda: {own.gateway_ip})
+        try:
+            watcher.start(*own.run_in_netns(DiscoveryWatcher.make_sockets, netns.IFACE))
+            status["discovery"] = "watching ARP and ping"
+        except OSError as e:  # needs NET_RAW, created before dropping root
+            log.error("Discovery detection unavailable: %s", e)
+            status["discovery"] = f"failed: {e.strerror or e}"
+            watcher = None
+
     announcer = None
     if own and cfg["mdns"]:
         announcer = Announcer(own.run_in_netns, who["hostname"])
@@ -225,6 +238,8 @@ async def main() -> None:
         loop.add_signal_handler(sig, stop.set)
     await stop.wait()
     log.info("Shutting down")
+    if watcher:
+        watcher.stop()
     if announcer:
         announcer.stop()  # goodbye packets, so it disappears from network browsers
     if own:

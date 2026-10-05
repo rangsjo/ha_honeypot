@@ -29,6 +29,7 @@
     "tripwire_ports": [3389, 5900, 3306],
     "probe_back": true,
     "mdns": true,
+    "detect_discovery": true,
     "own_ip": true
   },
   "schema": {
@@ -47,6 +48,7 @@
     "tripwire_ports": ["int(1, 65535)"],
     "probe_back": "bool",
     "mdns": "bool",
+    "detect_discovery": "bool",
     "hostname": "str?",
     "ssh_banner": "str?",
     "telnet_banner": "str?",

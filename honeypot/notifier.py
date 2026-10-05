@@ -43,7 +43,10 @@ def format_alert(event: dict, suppressed: int = 0, host: dict | None = None,
     host = host or {}
     service, ip = event["service"], event["src_ip"]
     name = best_name(host)
-    if event["kind"] == "login":
+    if event["kind"] == "discovery":
+        title = "Honeypot: network scan"
+        lines = [f"{ip} looked for the honeypot ({event.get('detail') or 'discovery'})"]
+    elif event["kind"] == "login":
         title = f"Honeypot: login attempt on {service}"
         secret = event.get("password") or event.get("detail") or ""
         lines = [f"{ip} tried {event.get('username', '')!r} / {secret!r}"]

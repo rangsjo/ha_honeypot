@@ -20,6 +20,7 @@ DEFAULTS = {
     "tripwire_ports": [3389, 5900, 3306],
     "probe_back": True,
     "mdns": True,
+    "detect_discovery": True,
     # Persona overrides; empty = use the random per-install persona.
     "hostname": "",
     "ssh_banner": "",
