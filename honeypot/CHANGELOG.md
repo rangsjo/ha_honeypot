@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- **Stricter own IP receive check:** it now requires a confirmed unicast reply from the gateway. A gateway's broadcast ARP request could make the check pass while the honeypot was unreachable.
+
 ## 1.1.1
 
 - **Own IP diagnostics:** DHCP asks for broadcast replies, so the honeypot gets a lease even where traffic to its own MAC is filtered. The receive check then reports precisely whether broadcast or unicast traffic is failing.

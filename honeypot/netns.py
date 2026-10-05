@@ -143,9 +143,11 @@ class OwnIP:
     async def _check_receive(self) -> None:
         """Make sure unicast frames to our MAC get through (a static address wouldn't notice otherwise).
 
-        Sending anything to the gateway triggers an ARP request; the gateway's
-        reply is addressed to the honeypot's MAC, which is exactly what a VM
-        without promiscuous mode drops.
+        Sending anything to the gateway makes the kernel confirm the gateway's
+        MAC with a unicast ARP exchange; the gateway's reply is addressed to the
+        honeypot's MAC, which is exactly what a VM without promiscuous mode
+        drops. Only REACHABLE counts: a STALE entry can come from the gateway's
+        own broadcast ARP request and proves nothing about unicast.
         """
         gateway = parse_gateway(await _run(*self._ns("ip", "-4", "route", "show", "default")))
         if not gateway:
@@ -158,9 +160,9 @@ class OwnIP:
         finally:
             s.close()
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + 3
+        deadline = loop.time() + 6
         while loop.time() < deadline:
-            if "lladdr" in await _run(*self._ns("ip", "neigh", "show", gateway, "dev", IFACE)):
+            if "REACHABLE" in await _run(*self._ns("ip", "neigh", "show", gateway, "dev", IFACE)):
                 return
             await asyncio.sleep(0.3)
         raise RuntimeError(f"DHCP gave {self.ip} (as broadcast), but replies sent to the honeypot's MAC "
