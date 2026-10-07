@@ -188,6 +188,7 @@ async def main() -> None:
         watcher = DiscoveryWatcher(report, lambda: own.ip, lambda: {own.gateway_ip})
         try:
             watcher.start(*own.run_in_netns(DiscoveryWatcher.make_sockets, netns.IFACE))
+            enrich.contact_hook = watcher.note_contact
             status["discovery"] = "watching ARP and ping"
         except OSError as e:  # needs NET_RAW, created before dropping root
             log.error("Discovery detection unavailable: %s", e)
@@ -197,6 +198,8 @@ async def main() -> None:
     announcer = None
     if own and cfg["mdns"]:
         announcer = Announcer(own.run_in_netns, who["hostname"])
+        if watcher:
+            watcher.quiet()  # devices answering the mDNS probes ARP for us
         try:
             names = await asyncio.get_running_loop().run_in_executor(None, announcer.start, own.ip, listening)
             status["mdns"] = f"{who['hostname']}.local: {', '.join(names) or 'no services'}"
@@ -227,6 +230,8 @@ async def main() -> None:
                 if own.refresh_ip():
                     status["own_ip"] = f"{own.ip} · MAC {who['mac']} · {who['hostname']}"
                     if announcer:
+                        if watcher:
+                            watcher.quiet()
                         announcer.update_ip(own.ip)
         background(follow_dhcp())
 

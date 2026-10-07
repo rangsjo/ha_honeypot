@@ -24,6 +24,13 @@ MANUF_PATH = Path(__file__).parent / "manuf"
 # Creates the sockets used to contact the intruder. With own_ip this is
 # replaced by OwnIP.socket so lookups come from the honeypot's IP, not HA's.
 socket_factory = socket.socket
+# Told about every host the lookups contact (so its replies aren't taken for a scan).
+contact_hook = None
+
+
+def _contacting(ip: str) -> None:
+    if contact_hook:
+        contact_hook(ip)
 
 # Ports whose being open says something about what kind of device this is.
 PROBE_PORTS = {
@@ -102,6 +109,7 @@ class _UDPOnce(asyncio.DatagramProtocol):
 
 async def udp_query(ip: str, port: int, payload: bytes, timeout: float = 1.5) -> bytes | None:
     loop = asyncio.get_running_loop()
+    _contacting(ip)
     sock = socket_factory(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setblocking(False)
     try:
@@ -211,6 +219,7 @@ async def reverse_dns(ip: str) -> str | None:
 # ── Active probe ──────────────────────────────────────────────────────────────
 
 async def _port_open(ip: str, port: int, timeout: float) -> bool:
+    _contacting(ip)
     sock = socket_factory(socket.AF_INET, socket.SOCK_STREAM)
     sock.setblocking(False)
     try:

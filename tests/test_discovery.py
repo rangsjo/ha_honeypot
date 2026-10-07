@@ -52,3 +52,17 @@ def test_discovery_alert_text():
                                "detail": "ping"}, 0, {"dns_name": "HP-ENVY16.lan"})
     assert title == "Honeypot: network scan from HP-ENVY16.lan"
     assert msg.splitlines()[0] == "192.168.1.206 looked for the honeypot (ping)"
+
+
+def test_own_traffic_does_not_count_as_a_scan():
+    events, now = [], [1000.0]
+    w = DiscoveryWatcher(lambda s, peer, k, **f: events.append(peer[0]), lambda: "192.168.1.191",
+                         lambda: set(), clock=lambda: now[0])
+    w.quiet(120)                                              # mDNS announcement just started
+    w.on_arp(arp_request("192.168.1.194", "192.168.1.191"))   # printer answering the probe
+    now[0] += 121
+    w.note_contact("192.168.1.50")                            # honeypot looked this host up
+    w.on_arp(arp_request("192.168.1.50", "192.168.1.191"))
+    w.on_icmp(icmp_echo("192.168.1.50", "192.168.1.191"))     # a ping is never a reply: still reported
+    w.on_arp(arp_request("192.168.1.194", "192.168.1.191"))   # after the grace period: a real scan
+    assert events == ["192.168.1.50", "192.168.1.194"]

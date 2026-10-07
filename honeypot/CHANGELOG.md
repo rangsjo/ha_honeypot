@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1
+
+- **Fix false "network scan" alerts:** devices with Bonjour (printers, Apple devices) answer the honeypot's own mDNS queries at startup, and that showed up as a scan. ARP requests caused by the honeypot's own traffic are now ignored: for 2 minutes after its mDNS announcement, and from hosts it just looked up itself.
+
 ## 1.4.0
 
 - **Critical alerts** option: alerts sound even on silent or Do Not Disturb, like a critical-alert automation did.

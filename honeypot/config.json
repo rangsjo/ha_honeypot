@@ -1,6 +1,6 @@
 {
   "name": "Honeypot",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "slug": "honeypot",
   "description": "Fake SSH, Telnet, FTP and HTTP services that alert you through Home Assistant when anything on your network touches them.",
   "url": "https://github.com/rangsjo/ha_honeypot",

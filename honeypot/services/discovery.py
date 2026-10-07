@@ -23,6 +23,10 @@ log = logging.getLogger(__name__)
 
 ETH_P_ARP = 0x0806
 PER_SOURCE_INTERVAL = 60  # seconds between events per source and method
+# ARP requests can also be replies-in-waiting to the honeypot's own traffic:
+# devices answering its mDNS probes, or hosts it just looked up after an alert.
+# Those aren't scans, so they're ignored for a while.
+CONTACT_GRACE = 120
 
 
 def parse_arp_request(frame: bytes) -> tuple[str, str, str] | None:
@@ -54,6 +58,16 @@ class DiscoveryWatcher:
         self._clock = clock
         self._last: dict[tuple[str, str], float] = {}
         self._socks: list[socket.socket] = []
+        self._quiet_until = 0.0
+        self._contacted: dict[str, float] = {}
+
+    def quiet(self, seconds: float = CONTACT_GRACE) -> None:
+        """Ignore ARP requests for a while, e.g. while mDNS probes get their answers."""
+        self._quiet_until = max(self._quiet_until, self._clock() + seconds)
+
+    def note_contact(self, ip: str) -> None:
+        """The honeypot itself just sent traffic to ip; its ARP request may be the reply."""
+        self._contacted[ip] = self._clock()
 
     def _seen(self, method: str, src_ip: str, detail: str, mac: str | None = None) -> None:
         if src_ip in ("0.0.0.0", self._own_ip()) or src_ip in self._ignore():
@@ -77,6 +91,9 @@ class DiscoveryWatcher:
         parsed = parse_arp_request(frame)
         if parsed and parsed[2] == self._own_ip():
             mac, src, target = parsed
+            now = self._clock()
+            if now < self._quiet_until or now - self._contacted.get(src, -CONTACT_GRACE) < CONTACT_GRACE:
+                return
             self._seen("arp", src, f"ARP: who has {target}?", mac)
 
     def on_icmp(self, packet: bytes) -> None:
