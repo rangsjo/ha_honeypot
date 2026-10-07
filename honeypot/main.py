@@ -115,6 +115,8 @@ async def main() -> None:
         if ip in ignore:
             return
         event = store.add({"service": service, "kind": kind, "src_ip": ip, "src_port": port, **fields})
+        if kind == "lookup":  # weak signal: logged for the panel, no alert
+            return
         entities.event(event)
         background(entities.publish({entities_module.INTRUSION, entities_module.TODAY}))
         log.warning("%s %s from %s:%s %s", service, kind, ip, port,

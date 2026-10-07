@@ -1,8 +1,10 @@
 # Changelog
 
-## 1.4.1
+## 1.5.0
 
-- **Fix false "network scan" alerts:** devices with Bonjour (printers, Apple devices) answer the honeypot's own mDNS queries at startup, and that showed up as a scan. ARP requests caused by the honeypot's own traffic are now ignored: for 2 minutes after its mDNS announcement, and from hosts it just looked up itself.
+- **Much better scan detection:** the honeypot now watches every ARP broadcast on the LAN and alerts when one device asks for many addresses within seconds, the signature of a network sweep. Ordinary devices never do that.
+- **Fewer false alarms:** a single device looking up the honeypot's address (e.g. a TV or printer re-checking the NAS it saw over Bonjour) is now only logged as a *lookup* in the panel, without an alert. Pings still alert.
+- ARP requests caused by the honeypot's own traffic (answers to its mDNS probes, hosts it just looked up) are ignored.
 
 ## 1.4.0
 

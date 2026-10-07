@@ -29,6 +29,25 @@ def test_parsers():
     assert parse_arp_request(b"short") is None and parse_icmp_echo(b"\x45") is None
 
 
+def test_single_arp_is_a_lookup_and_a_sweep_is_discovery():
+    events, now = [], [0.0]
+    w = DiscoveryWatcher(lambda s, peer, k, **f: events.append((peer[0], k, f["detail"])), lambda: "192.168.1.191",
+                         lambda: {"192.168.1.1"}, clock=lambda: now[0])
+    w.on_arp(arp_request("192.168.1.83", "192.168.1.191"))       # hourly re-check of a known NAS
+    assert events == [("192.168.1.83", "lookup", "ARP: who has 192.168.1.191?")]
+    events.clear()
+    for i in range(2, 12):                                       # sweep of other addresses
+        now[0] += 0.2
+        w.on_arp(arp_request("192.168.1.206", f"192.168.1.{i}"))
+    assert events == [("192.168.1.206", "discovery", "ARP sweep: asked for 8 addresses in 10 s")]
+    events.clear()
+    for i in range(20, 30):                                      # slow, normal traffic: no sweep
+        now[0] += 5
+        w.on_arp(arp_request("192.168.1.50", f"192.168.1.{i}"))
+    w.on_arp(arp_request("192.168.1.50", "192.168.1.50"))        # gratuitous ARP
+    assert events == []
+
+
 def test_watcher_filters_and_throttles():
     events, now = [], [0.0]
     w = DiscoveryWatcher(lambda s, peer, k, **f: events.append((peer[0], f)), lambda: "192.168.1.191",

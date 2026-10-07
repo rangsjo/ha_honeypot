@@ -52,7 +52,7 @@ configuration:
     description: In own-IP mode, announce the fake NAS and its services (SMB, SSH, web) over Bonjour/mDNS so it appears in Finder, file managers and network browsers. Catches curious people, not just scanners.
   detect_discovery:
     name: Detect network scans
-    description: In own-IP mode, alert when a device looks for the honeypot's address (ARP or ping), which scanners do before probing ports. Your router is ignored.
+    description: In own-IP mode, alert when a device sweeps the network (asks for many addresses within seconds) or pings the honeypot, as scanners do before probing ports. Your router is ignored.
   own_ip:
     name: Own IP
     description: Appear as a separate device on the LAN with its own MAC and IP (needs Ethernet; in a VM, a bridged adapter that allows other MACs). Falls back to Home Assistant's IP if it can't be set up.

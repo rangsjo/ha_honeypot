@@ -17,7 +17,7 @@ By default the honeypot appears as a **separate device on your LAN** (`own_ip`).
 | TCP tripwires (RDP, VNC, MySQL) | 3389, 5900, 3306 | the connection and its first bytes |
 
 In own-IP mode the honeypot also:
-- **Detects network scans:** it notices when a device looks for its address (ARP or ping), which scanners do before probing any port. Your router is ignored.
+- **Detects network scans:** it sees every ARP broadcast on the LAN and alerts when one device asks for many addresses within seconds (a sweep, as scanners do before probing ports), or when a device pings it. A device that merely re-checks the honeypot's address, like a TV that saw the fake NAS over Bonjour, is only logged as a *lookup*. Your router is ignored.
 - **Announces itself over mDNS/Bonjour** as a file server with SMB, SSH and web services, so it appears in Finder, file managers and network browsers and attracts curious people.
 
 Every login is refused. On first start the add-on picks a random but consistent **persona**: hostname, SSH/Telnet/FTP banners from one OS, web page title, `Server` header and a MAC vendor (Synology, QNAP, Intel or Raspberry Pi). It keeps that persona in `/data/persona.json`. Every install looks different, so scanners can't learn to skip this add-on.
@@ -121,7 +121,7 @@ Your router may list the honeypot as a new device (often named after the MAC ven
 | `telnet_port`, `ftp_port`, `http_port` | `23`, `21`, `80` | `0` disables a service. |
 | `smb_port`, `mqtt_port` | `445`, `1883` | Own-IP mode only, so they never take the Samba or Mosquitto add-on's ports. `0` disables. |
 | `tripwire_ports` | `[3389, 5900, 3306]` | Plain TCP listeners. |
-| `detect_discovery` | `true` | Alert on ARP/ping sweeps of the honeypot's IP (own-IP mode). |
+| `detect_discovery` | `true` | Alert on ARP sweeps of the LAN and pings of the honeypot (own-IP mode). |
 | `mdns` | `true` | Announce the fake NAS over mDNS (own-IP mode). |
 | `probe_back` | `true` | Check a few of the intruder's ports to guess the device type. |
 | `own_ip` | `true` | Appear as a separate LAN device (see above). |

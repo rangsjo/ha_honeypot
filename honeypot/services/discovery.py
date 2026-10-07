@@ -1,9 +1,15 @@
-"""Notice host discovery: ARP requests and pings for the honeypot's own IP.
+"""Notice host discovery: ARP sweeps of the network and pings of the honeypot.
 
-Scanners usually find live hosts before probing ports (nmap -sn, ARP sweeps,
-ping sweeps). In own-IP mode nothing legitimate looks for the honeypot's
-address except the router, so these are reported as `discovery` events,
-often before the scanner touches any port.
+Scanners find live hosts before probing ports (nmap -sn, ARP sweeps, ping
+sweeps). The honeypot sees every ARP broadcast on the LAN, and a sweep shows
+up as one device asking for many different addresses within seconds.
+Ordinary devices never do that, so it's reported as a `discovery` event,
+usually before the scanner touches any port. A ping of the honeypot is
+reported too.
+
+A single ARP request for the honeypot's address is weak evidence: devices
+that saw the fake NAS over mDNS re-check it now and then. Those are logged as
+`lookup` events (shown in the panel, no alert).
 
 The kernel still answers the ARP requests and pings; this only listens. The
 raw sockets are created in the honeypot's namespace before the add-on drops
@@ -11,6 +17,7 @@ root and stay usable afterwards.
 """
 
 import asyncio
+from collections import deque
 import ipaddress
 import logging
 import socket
@@ -27,6 +34,9 @@ PER_SOURCE_INTERVAL = 60  # seconds between events per source and method
 # devices answering its mDNS probes, or hosts it just looked up after an alert.
 # Those aren't scans, so they're ignored for a while.
 CONTACT_GRACE = 120
+SWEEP_WINDOW = 10   # seconds
+SWEEP_TARGETS = 8   # distinct addresses asked for within the window = a sweep
+MAX_SOURCES = 1024
 
 
 def parse_arp_request(frame: bytes) -> tuple[str, str, str] | None:
@@ -60,6 +70,7 @@ class DiscoveryWatcher:
         self._socks: list[socket.socket] = []
         self._quiet_until = 0.0
         self._contacted: dict[str, float] = {}
+        self._asked: dict[str, deque[tuple[float, str]]] = {}
 
     def quiet(self, seconds: float = CONTACT_GRACE) -> None:
         """Ignore ARP requests for a while, e.g. while mDNS probes get their answers."""
@@ -69,7 +80,8 @@ class DiscoveryWatcher:
         """The honeypot itself just sent traffic to ip; its ARP request may be the reply."""
         self._contacted[ip] = self._clock()
 
-    def _seen(self, method: str, src_ip: str, detail: str, mac: str | None = None) -> None:
+    def _seen(self, method: str, src_ip: str, detail: str, mac: str | None = None,
+              kind: str = "discovery") -> None:
         if src_ip in ("0.0.0.0", self._own_ip()) or src_ip in self._ignore():
             return
         try:
@@ -85,16 +97,35 @@ class DiscoveryWatcher:
         fields = {"detail": detail}
         if mac:
             fields["mac"] = mac
-        self._report("discovery", (src_ip, 0), "discovery", **fields)
+        self._report("discovery", (src_ip, 0), kind, **fields)
+
+    def _sweep_count(self, src: str, target: str, now: float) -> int:
+        """Distinct addresses src asked for within the sweep window."""
+        asked = self._asked.setdefault(src, deque())
+        asked.append((now, target))
+        while asked and now - asked[0][0] > SWEEP_WINDOW:
+            asked.popleft()
+        if len(self._asked) > MAX_SOURCES:  # forget the quietest sources
+            for ip in [ip for ip, q in self._asked.items() if not q or now - q[-1][0] > SWEEP_WINDOW]:
+                del self._asked[ip]
+        return len({t for _, t in asked})
 
     def on_arp(self, frame: bytes) -> None:
         parsed = parse_arp_request(frame)
-        if parsed and parsed[2] == self._own_ip():
-            mac, src, target = parsed
-            now = self._clock()
+        if not parsed:
+            return
+        mac, src, target = parsed
+        if src in ("0.0.0.0", target):  # address probes and gratuitous ARP
+            return
+        now = self._clock()
+        count = self._sweep_count(src, target, now)
+        if count >= SWEEP_TARGETS:
+            self._seen("sweep", src, f"ARP sweep: asked for {count} addresses in {SWEEP_WINDOW} s", mac)
+            return
+        if target == self._own_ip():
             if now < self._quiet_until or now - self._contacted.get(src, -CONTACT_GRACE) < CONTACT_GRACE:
                 return
-            self._seen("arp", src, f"ARP: who has {target}?", mac)
+            self._seen("arp", src, f"ARP: who has {target}?", mac, kind="lookup")
 
     def on_icmp(self, packet: bytes) -> None:
         parsed = parse_icmp_echo(packet)
